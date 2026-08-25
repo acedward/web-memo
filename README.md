@@ -18,19 +18,17 @@ spend, provable by anyone, without leaking any key.
 
 ## Status
 
-**The Read section works.** Give the page an offer file and its memo wrapper and
-it verifies the pair entirely in your browser — no network request, no key, no
-wallet — and reports the memo plus one of six trust states, with a plain-language
-account of what that state does and does not prove.
+**Both sections work.** Read verifies a pair entirely in your browser — no
+network request, no key, no wallet. Create builds one, end to end, and then
+verifies its own output with Read before showing it to you.
 
 | Section | What it does | State |
 | --- | --- | --- |
 | **Read** | paste or upload an offer file + memo wrapper, verify fully offline, show the memo inertly and the trust state | **working** |
-| **Create** | build a demo-state offer with your memo, prove it, emit both artifacts | not built |
+| **Create** | mint a demo coin, spend it, commit your memo to that spend, prove both, emit the two artifacts | **working** — needs a proof server (see below) |
 
-Create is absent rather than stubbed. It needs a binding the WASM surface does
-not export yet (nothing produces the wrapper's statement tail), so a button for
-it today would be a button that cannot work.
+Create is the only thing on this page that makes a network request, and it makes
+exactly two: the proving payloads, to the proof-server URL you configure.
 
 ### Try it without having any artifacts
 
@@ -58,7 +56,43 @@ only ever sees a file — so it lists the state, marks it unreachable, and never
 claims it. `Committed but missing` shows no memo bytes on purpose: a published
 commitment is not the memo.
 
-## What the finished page will demonstrate
+### Using Create
+
+Create needs a **proof server**, because the spend circuit is far too large to
+prove in a browser tab. The page never talks to a proof server you did not
+configure, and the default is your own machine.
+
+1. Run a `midnight-proof-server` at the pin this page's WASM bundle was built
+   from (see [`vendor/PROVENANCE.md`](vendor/PROVENANCE.md) for the commit). It
+   must serve `POST /prove` and `POST /prove-tx`; the page also calls
+   `GET /health` and `GET /version` for the **Check it is running** button.
+2. Put its URL in the Create section. The default is `http://localhost:6300`,
+   which is the proof server's own default port. The value is remembered in this
+   browser (`localStorage`), never sent anywhere, and only `http:`/`https:` URLs
+   are accepted.
+3. Type a memo — 1 to 512 **bytes**, and the counter shows bytes, because that
+   is the limit that bites (128 emoji is exactly 512 bytes; 129 is refused). A
+   hex mode is there for binary memos.
+4. Press Create. Two proofs get made, a few seconds each. The page stays usable
+   while it waits, cancelling is clean, and if anything fails you get a typed
+   error and **no** artifact.
+
+An https page may call `http://localhost` — localhost is a
+potentially-trustworthy origin and is exempt from mixed-content blocking — so
+this works from the deployed site against a proof server on your own machine.
+
+**What leaves your browser, precisely.** The two proving payloads. They contain
+the spend's proof preimage and, for the companion, the memo bytes. They do
+**not** contain your seed or your secret keys — the test suite asserts this by
+scanning every outbound request body for both. Nothing else on this page makes
+any network request at all.
+
+**What you get back** is a pair of artifacts over a coin that does not exist. The
+proofs are real and verify; the commitment tree they are anchored to was created
+in your browser tab a second earlier. The offer could never settle on any chain,
+and the page says so next to the artifacts.
+
+## What this page demonstrates
 
 Zswap offers have nowhere to put a message that a counterparty can trust. The
 construction behind this page adds one by **binding the memo into the spend
@@ -118,8 +152,10 @@ an offer file, not one.
   (K = 19) for in-browser proving to be practical, so Create posts a proving
   payload to a **proof server you configure and run yourself**, defaulting to
   `localhost`. Witness material goes to that server; the page says so, and the
-  seed and secret keys never leave the browser. Docker instructions ship with
-  this repo when the Create section lands.
+  seed and secret keys never leave the browser — the test suite asserts the
+  latter by scanning every outbound request body. A ready-made `docker/` setup
+  for the pinned proof server is not in this build yet; **Using Create** above
+  says exactly what the page needs from one.
 - **The page never submits anything to a network** and never moves funds.
   Producing and displaying files is its entire effect.
 
@@ -127,7 +163,7 @@ an offer file, not one.
 
 | | |
 | --- | --- |
-| Ledger fork carrying the memo helpers and JS bindings | [acedward/midnight-ledger#2](https://github.com/acedward/midnight-ledger/pull/2) — branch `00003-spend-proof-memo-binding`, pinned at `da1d2f04` |
+| Ledger fork carrying the memo helpers and JS bindings | [acedward/midnight-ledger#2](https://github.com/acedward/midnight-ledger/pull/2) — branch `00003-spend-proof-memo-binding`, pinned at `32fdefc3` |
 | MIP-0005 revision — offer files as full proven transactions | [midnightntwrk/midnight-improvement-proposals#227](https://github.com/midnightntwrk/midnight-improvement-proposals/pull/227) |
 | MIP-0006 revision — publication and transport of swap offers | [midnightntwrk/midnight-improvement-proposals#228](https://github.com/midnightntwrk/midnight-improvement-proposals/pull/228) |
 | Upstream ledger baseline | tag `ledger-9.1.0.0-rc.3` (`4823b535`), published as `@midnightntwrk/ledger-v9@1.0.0-rc.3` |
@@ -165,11 +201,18 @@ Cloudflare Pages would serve it, and drives the page's own entry points rather
 than a private copy of the pipeline.
 
 ```sh
-npm test                # verify + build + the browser suite
+npm test                # verify + build + BOTH browser suites
+npm run test:read       # the Read suite on its own (no proof server needed)
+
+# The Create suite. Without PROOF_SERVER it runs only the half that needs no
+# proving — the memo bounds, the unreachable-server path and cancellation —
+# and says so.
+PROOF_SERVER=http://127.0.0.1:6300 npm run test:create
+
 CHROME_BIN=/path/to/chrome npm run test:read     # if Chrome is not where it usually is
 ```
 
-It covers the tamper matrix (memo bit-flip, grafted companion proof, perturbed
+The **Read** suite covers the tamper matrix (memo bit-flip, grafted companion proof, perturbed
 statement row, re-attributed nullifier, crossed pairs, spliced and truncated
 wrapper sections, oversize and malformed inputs), the inert rendering of a
 genuinely authenticated hostile memo, per-input attribution when two inputs carry
@@ -177,6 +220,24 @@ the identical memo, and an **airplane test**: with every artifact already in
 memory, a full parse-verify-render cycle must make zero network requests. Every
 tampered artifact is constructed at test time from the frozen fixtures, so its
 defect is visible in the source rather than baked into a committed file.
+
+The **Create** suite drives a real Create run against a real proof server and
+checks, among other things:
+
+- the 1..=512-**byte** bound is enforced *before* any egress — asserted by
+  counting network requests, not by reading the code;
+- an unreachable proof server gives a typed error naming the URL, and no
+  artifact;
+- cancelling mid-proving leaves no artifact and no half-rendered text;
+- the page stayed responsive during the run (a `requestAnimationFrame` counter
+  kept advancing);
+- **SC-006**, at the CDP protocol level: every request made during Create went
+  to the configured proof server, there were exactly two POSTs, and neither
+  body contains the seed or the coin secret key — searched as raw bytes, not
+  as strings;
+- the round trip: the produced pair, pasted into Read **in a fresh browser
+  context**, comes back authenticated with zero network requests — and a
+  control that flips one byte of that same wrapper is refused.
 
 ### Deploy (Cloudflare Pages)
 
@@ -193,7 +254,7 @@ npm run pages:deploy
 
 ```
 public/index.html            page shell + the import map that resolves `#self`
-src/index.js                 bootstrap: load the engine, check it, mount Read
+src/index.js                 bootstrap: load the engine, check it, mount both sections
 src/wasm.js                  the only loader for the vendored WASM bundle
 src/lib/dom.js               the ONLY way this page builds DOM (textContent only)
 src/lib/inert.js             inert rendering of untrusted bytes (port of 00003 inert.rs)
@@ -204,6 +265,13 @@ src/read/verify.js           the verify pipeline (offline, client-side)
 src/read/trust.js            the six trust states, and which are reachable here
 src/read/memoview.js         the memo panel: text / strict-ASCII / hex
 src/read/ui.js               the Read section's DOM and the test hook
+src/create/demo.js           the demo wallet, demo state, spend and anchor output
+src/create/memo.js           the 1..=512-byte bound, enforced before proving
+src/create/prover.js         the ONLY code here that makes a network request
+src/create/proofcodec.js     interim: re-tag a proof-server proof for the wrapper
+src/create/build.js          the Create flow, including the self-check
+src/create/artifacts.js      bech32m rendering, copy and download
+src/create/ui.js             the Create section's DOM and the test hook
 fixtures/                    frozen reference artifacts + SHA256SUMS + provenance
 fixtures/generator/          verbatim archive of the program that made them
 test/read-matrix.mjs         the browser suite (`npm test`)

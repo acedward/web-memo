@@ -102,6 +102,20 @@
   button.toggle.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
   .examples { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 
+  /* Create section */
+  h3.spaced { margin-top: 18px; }
+  input.urlbox, select.urlbox {
+    background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px;
+    padding: 4px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; min-width: 230px;
+  }
+  select.urlbox { font-family: inherit; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  ul.steps { list-style: none; }
+  ul.steps li { padding: 2px 0; }
+  textarea.artifact-text { min-height: 74px; }
+  .card.artifact { border-color: #2c3f56; }
+
   ul.loaded { list-style: none; }
   ul.loaded li { display: flex; gap: 10px; align-items: center; padding: 4px 0; border-top: 1px solid #21262d; flex-wrap: wrap; }
   ul.loaded li:first-child { border-top: none; }
@@ -167,12 +181,16 @@
 
 <div id="read"></div>
 
-<h2>Create</h2>
+<h2>Create — make a memo'd offer</h2>
 <p class="muted small">
-  Building a memo'd offer in the browser is a later phase of this project and is
-  not in this build. Rather than show a button that does nothing, the section is
-  absent until it works.
+  Type a memo, and this page will mint a demo coin, spend it, commit the memo to
+  that spend, have the two proofs made by a proof server you choose, and hand you
+  the pair of artifacts. Then it checks its own work with the verifier above
+  before showing you anything. The coin is imaginary and the offer could never
+  settle — the <em>proofs</em> are real.
 </p>
+
+<div id="create"></div>
 
 <h2>About</h2>
 <p class="muted small">

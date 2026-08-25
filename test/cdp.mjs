@@ -136,6 +136,25 @@ export async function newPage(cdp) {
     return { sessionId, targetId };
 }
 
+/**
+ * A page in a brand-new browser context — separate storage, separate cookies,
+ * nothing carried over from the default context.
+ *
+ * This is what "paste it into a FRESH browser session" means in the Create
+ * round-trip test: a second tab in the same context would share `localStorage`
+ * and could, in principle, share state the page put there.
+ */
+export async function newPageInFreshContext(cdp) {
+    const { browserContextId } = await cdp.send('Target.createBrowserContext', { disposeOnDetach: false });
+    const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank', browserContextId });
+    const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+    await cdp.send('Page.enable', {}, sessionId);
+    await cdp.send('Runtime.enable', {}, sessionId);
+    await cdp.send('Log.enable', {}, sessionId);
+    await cdp.send('Network.enable', {}, sessionId);
+    return { sessionId, targetId, browserContextId };
+}
+
 /** Collect console output, page errors and network events for one session. */
 export function collect(cdp, sessionId) {
     const bucket = { console: [], errors: [], requests: [], failures: [] };
@@ -153,7 +172,18 @@ export function collect(cdp, sessionId) {
                 bucket.errors.push(p.exceptionDetails?.exception?.description || p.exceptionDetails?.text || 'exception');
                 break;
             case 'Network.requestWillBeSent':
-                bucket.requests.push({ url: p.request.url, method: p.request.method, at: Date.now() });
+                bucket.requests.push({
+                    requestId: p.requestId,
+                    url: p.request.url,
+                    method: p.request.method,
+                    at: Date.now(),
+                    // Bodies matter for SC-006: the claim is not just "it talked
+                    // to one host", it is "and what it sent contained no key
+                    // material". `postDataEntries` carries base64, which is the
+                    // only form that survives binary payloads intact.
+                    postDataB64: (p.request.postDataEntries || []).map((e) => e.bytes || '').join(''),
+                    hasPostData: Boolean(p.request.hasPostData),
+                });
                 break;
             case 'Network.loadingFailed':
                 bucket.failures.push({ errorText: p.errorText, blockedReason: p.blockedReason });
