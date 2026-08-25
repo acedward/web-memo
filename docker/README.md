@@ -28,19 +28,24 @@ ledger, verifies it (see below) and builds it in debug with optimised
 dependencies; budget tens of minutes and a few GB of Docker disk. Every later
 `docker compose up -d` starts the existing image in a second.
 
-On first start the server downloads the proving parameters — a few hundred MB —
-into a Docker named volume, so the second start is fast too.
+On first start the server downloads the proving parameters into a Docker named
+volume — measured at **33 MB**, done in a few seconds — so the second start is
+instant and proving needs nothing further.
 
 ## Stopping it, and removing every trace
 
 ```sh
-docker compose down                 # stop and remove the container
-docker compose down -v --rmi local  # …and the parameter volume and the image
+docker compose down               # stop and remove the container
+docker compose down -v --rmi all  # …and the parameter volume and the image
 ```
 
-`down -v --rmi local` removes exactly what this compose file created and
-nothing else. It does not touch your Docker build cache and it does not touch
-any other container on the machine.
+`down -v --rmi all` removes exactly what this compose file created — the
+container, the network, the `webmemo-proof-params` volume and the
+`web-memo-proofserver` image — and nothing else. It does not touch your Docker
+build cache and it does not touch any other container on the machine.
+
+(`--rmi local` is the wrong flag here: this compose file names its image
+explicitly, and `local` only removes images that were left unnamed.)
 
 ## Options
 
@@ -137,14 +142,20 @@ If you would rather not use compose:
 ```sh
 docker build -f docker/Dockerfile.proofserver -t web-memo-proofserver:32fdefc3 docker/
 
+docker volume create webmemo-proof-params
+
 docker run --rm -d --name web-memo-proof-server \
   -p 127.0.0.1:6300:6300 \
-  -v "$HOME/.cache/midnight/zk-params:/params" \
-  -e MIDNIGHT_PP=/params \
+  -v webmemo-proof-params:/params \
   web-memo-proofserver:32fdefc3
 
-docker rm -f web-memo-proof-server     # when you are done
+# when you are done
+docker rm -f web-memo-proof-server
+docker volume rm webmemo-proof-params
+docker image rm web-memo-proofserver:32fdefc3
 ```
+
+(`MIDNIGHT_PP=/params` is already set in the image.)
 
 The build context is this directory only; the Dockerfile clones the pinned
 ledger itself, so nothing outside the repository is needed.
