@@ -67,7 +67,15 @@ function renderSelfTest(report) {
 }
 
 async function main() {
-    const report = { ok: false, initMs: null, exportCount: 0, memoPresent: 0, checks: [], error: null };
+    const report = {
+        ok: false,
+        initMs: null,
+        exportCount: 0,
+        memoPresent: 0,
+        memoExpected: MEMO_EXPORTS.length,
+        checks: [],
+        error: null,
+    };
 
     try {
         const wasm = await loadLedgerWasm();

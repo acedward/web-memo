@@ -1,1 +1,1 @@
-import * as wasm from '#self'; export function ContractDeploy_() { return wasm.ContractDeploy; }
+import * as wasm from '#self'; export function DustSpend_() { return wasm.DustSpend; }

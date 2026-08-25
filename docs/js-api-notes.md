@@ -1,27 +1,30 @@
 # Sharp edges in the `ledger-wasm` JavaScript surface
 
 Everything here was **measured** against the vendored bundle
-(`vendor/pkg/`, built from `acedward/midnight-ledger` @ `da1d2f04`) running in
+(`vendor/pkg/`, built from `acedward/midnight-ledger` @ `32fdefc3`) running in
 real Chrome, not read off documentation. It exists so the Read and Create
 sections do not rediscover the same traps one at a time.
 
-The short version: **the `.d.ts` types are too weak to catch any of this.** The
-memo surface *is* declared — all 13 functions, with doc comments — but nearly
+The short version: **the `.d.ts` types are too weak to catch most of this.** The
+memo surface *is* declared — all 14 functions, with doc comments — but nearly
 every parameter and return is `string`, `object`, `any` or `Array<any>`, so
-TypeScript will cheerfully accept calls that throw at runtime. Two of the traps
-below are compositions the type checker positively endorses.
+TypeScript will cheerfully accept calls that throw at runtime. The one export
+that breaks the pattern is the newest, `memoSpendStatementTail`, which ships a
+real signature.
 
-> ### These notes are pinned to `da1d2f04`, and two of them are scheduled to change
+> ### Re-pinned from `da1d2f04` to `32fdefc3` — §1 and §8 were REWRITTEN
 >
-> Upstream has accepted fixes for **§1** (`memoAnchorTokenTypeOf` will compose,
-> by making `createMemoAnchorOutput` read the *tagged* form) and **§8** (an
-> additive binding will expose the spend statement tail, unblocking wrapper
-> construction from the browser). When this repository re-pins and re-vendors
-> `vendor/pkg/`, **re-verify §1 and §8 before trusting them** — §1's workaround
-> becomes wrong, not merely unnecessary, once `createMemoAnchorOutput` expects
-> tagged input. Everything else here is independent of those two changes.
+> Two upstream commits landed on the fork branch (append-only, so `da1d2f04` is
+> still reachable): one adds `memoSpendStatementTail`, the other makes
+> `createMemoAnchorOutput` read the **tagged** token type. Both notes below now
+> describe the *current* pin and were re-measured against it.
+>
+> **If you have code written against `da1d2f04`, §1 is a breaking change**: the
+> `coin.type` argument that used to work is now refused. The old text is kept in
+> §1 only as a migration note, clearly marked, because reading a stale
+> workaround as current advice is exactly how this bites.
 
-## The 13 memo bindings
+## The 14 memo bindings
 
 ```ts
 memoHashV1(memo: Uint8Array): Uint8Array
@@ -33,6 +36,7 @@ createMemoAnchorOutput(segment: number | null | undefined, token_type: string,
                        nullifier: Uint8Array, h: Uint8Array): ZswapOutput
 createMemoCompanionProvingPayload(serialized_preimage: Uint8Array,
                                   memo: Uint8Array, key_material: any): Uint8Array
+memoSpendStatementTail(input: ZswapInput, segment: number): Uint8Array   // NEW at 32fdefc3
 memoWrapperBuild(memo, nullifier, segment, statement_tail,
                  companion_proof, locator?): Uint8Array
 memoWrapperParse(bytes: Uint8Array): object
@@ -44,34 +48,41 @@ memoWrapperDefaultHrp(): string
 
 ---
 
-## 1. `memoAnchorTokenTypeOf` does not compose with `createMemoAnchorOutput`
+## 1. `createMemoAnchorOutput` wants the **TAGGED** token type
 
-Both are typed `string`, and the doc comments say they are a pair. They are not.
-
-```js
-createMemoAnchorOutput(seg, memoAnchorTokenTypeOf(coin), nullifier, h);
-// Error: Not all bytes read, 33 bytes remaining
-```
-
-`memoAnchorTokenTypeOf` serialises **tagged** — 130 hex characters: the 33-byte
-ASCII tag `midnight:shielded-token-type[v1]:` followed by the 32-byte type.
-`createMemoAnchorOutput` parses **untagged**. The 33 leftover bytes in the error
-are exactly the tag.
-
-**Workaround — use the coin's own `type` field, which is already bare hex:**
+At the current pin the documented pair composes, and that is the only call that
+works:
 
 ```js
-createMemoAnchorOutput(seg, coin.type, nullifier, h);   // OK
+createMemoAnchorOutput(segment, memoAnchorTokenTypeOf(coin), nullifier, h);   // OK
 ```
 
-`memoAnchorTokenTypeOf` has no other caller, so nothing else is affected. This
-is an upstream defect on the pinned fork branch, not something to fix here.
+`memoAnchorTokenTypeOf(coin)` returns **130 hex characters**: the 33-byte ASCII
+tag `midnight:shielded-token-type[v1]:` followed by the 32-byte type.
+`createMemoAnchorOutput` deserialises exactly that, and enforces exact
+consumption.
 
-**Scheduled to change.** Upstream is fixing this by making
-`createMemoAnchorOutput` parse the **tagged** form, so the documented pair will
-compose — and the `coin.type` workaround above will then be the *wrong* call.
-After the next re-pin, pass `memoAnchorTokenTypeOf(coin)`, and delete the
-workaround rather than leaving both in place.
+**A bare untagged token type is refused**, with a message that names what it
+wanted:
+
+```js
+createMemoAnchorOutput(segment, coin.type, nullifier, h);
+// Error: expected header tag 'midnight:shielded-token-type[v1]:', got …
+```
+
+That matters because `coin.type` is the field a coin object actually carries
+(§4), so the wrong call is the one that looks natural — and both parameters are
+typed `string`, so nothing warns you. Trailing bytes and non-hex are refused the
+same way.
+
+> **Migration note for code written against `da1d2f04`.** At the old pin the
+> pairing was broken the other way round: `createMemoAnchorOutput` parsed
+> *untagged*, so `memoAnchorTokenTypeOf(coin)` threw `Not all bytes read, 33
+> bytes remaining` (the 33 being the tag) and `coin.type` was the workaround.
+> Upstream fixed it by routing both halves through one shared encode/decode
+> pair, so they cannot drift apart again. **Delete the `coin.type` workaround
+> rather than keeping both** — at this pin it is not merely unnecessary, it
+> fails.
 
 ## 2. `shieldedToken()` does not produce what `createShieldedCoinInfo` wants
 
@@ -152,30 +163,53 @@ reachable, the bytes it yields are exactly what the verifier eats, and
 whole-transaction bytes are refused outright, so the extraction is mandatory
 rather than optional.
 
-## 8. `memoWrapperBuild` needs a `statement_tail` that nothing produces
+## 8. `memoSpendStatementTail` is what makes `memoWrapperBuild` reachable
 
 `memoWrapperBuild(memo, nullifier, segment, statement_tail, companion_proof,
-locator?)` takes the statement rows `1..INPUT_PIS` (32 little-endian bytes each)
-**from its caller**. `memoWrapperVerify` rebuilds them internally and never
-exposes them, and the Rust producer (`zswap::verify::spend_statement`) is not
-bound to WASM — zero exports match `/statement|tail/i`.
+locator?)` takes the spend-statement rows `1..INPUT_PIS` (32 little-endian bytes
+each) **from its caller**. `memoWrapperVerify` rebuilds them internally and
+never exposes them, so until `32fdefc3` a browser could build a memo-anchored
+offer but not the wrapper that authenticates it. The binding added at that
+commit closes it:
 
-**Consequence:** at this pin the verification half is fully served, but the
-browser cannot assemble a memo wrapper around a companion proof it receives back
-from a proof server. Reimplementing the derivation in JavaScript would create a
-second, unverified copy of a byte mapping and is the wrong answer.
+```js
+const tail = wasm.memoSpendStatementTail(input, segment);   // 2144 bytes = 67 × 32
+```
 
-**Scheduled to change.** An additive upstream binding exposing the spend
-statement will land on the fork branch. Until this repository re-pins and
-re-vendors, wrapper *construction* is out of reach from the browser; wrapper
-*parsing and verification* are not affected and work today.
+Four properties, all of which the Create flow leans on:
+
+* **It needs no memo and no `h`.** The tail is rows `1..`, and those rows depend
+  only on the input's public fields and the segment — never on row 0
+  (`binding_input`). The canonical statement and the companion statement share
+  an identical tail, so a caller cannot get the memo commitment wrong here
+  because it is not an argument.
+* **It accepts an UNPROVEN input.** `state.spend(...)` hands you one directly,
+  and `offer.inputs[i]` yields the same thing; both give byte-identical tails.
+  That is what lets the page derive the tail *before* it sends anything to a
+  proof server. Proven and proof-erased inputs work too.
+* **The segment must be the one the input is spent at.** A tail derived at a
+  different segment is different bytes and is refused at verification. This is
+  the easiest way to build a wrapper that fails for a reason that looks
+  cryptographic and is not.
+* **Contract-owned inputs are refused at derivation**, because no wrapper over
+  one could ever verify. Failing here is deliberate: the alternative is a
+  wrapper that only fails three steps later.
+
+`memoWrapperBuild` itself rejects a truncated tail and one whose length is not a
+multiple of 32, so a mis-sliced buffer does not become a silently invalid
+wrapper.
+
+**Do not reimplement the derivation in JavaScript.** It would be a second,
+unverified copy of a byte mapping, which is precisely the failure mode the
+upstream conformance vectors exist to prevent.
 
 ## 9. Error messages that mislead
 
 | Message | Actually means |
 | --- | --- |
 | `failed to fill whole buffer` | `read_exact` ran out of input — usually a wrong-shaped hex string, **not** a randomness failure |
-| `Not all bytes read, 33 bytes remaining` | a **tagged** value was handed to an **untagged** parser; 33 is the tag length |
+| `expected header tag 'midnight:shielded-token-type[v1]:', got …` | an **untagged** token type (e.g. `coin.type`) was handed to `createMemoAnchorOutput`, which wants the tagged form — see §1 |
+| `Not all bytes read, N bytes remaining` | a tagged value reached an untagged parser, or a tagged one had trailing bytes. At the superseded `da1d2f04` pin this was §1's symptom, with `N` = 33 = the tag length |
 
 ## 10. Loading: `#self` and the import map
 
@@ -252,6 +286,26 @@ The only JS route to a proven transaction is the proof server
 (`createProvingTransactionPayload`). Anything that needs to *assemble* a
 transaction around an already-proven offer has to do it in Rust; this repo's
 `fixtures/generator/` is that, and `fixtures/PROVENANCE.md` explains why.
+
+**This is a constraint on ORDER, not a wall — Create does not hit it.** The
+closed door is "prove first, assemble second". Create goes the other way round
+and never needs a setter:
+
+```
+demo state → spend → ZswapInput            (unproven)
+           → createMemoAnchorOutput(...)   (§1: tagged token type)
+           → ZswapOffer                    (unproven)
+           → Transaction.fromParts(...)    (accepts UNPROVEN offers — that is the rule above)
+           → createProvingTransactionPayload(tx, provingData) → proof server
+           → Transaction.deserialize(...)  (the proven offer file)
+```
+
+The wrapper's statement tail is taken from the **unproven** input before any of
+this (§8), so nothing has to be read back out of the proven transaction to build
+the `swapmsg` half. Read then extracts the offer from the proven transaction
+with the §11 accessors. `fixtures/generator/` still exists in Rust because it
+starts from offers that were *already* proven, which is the one shape JavaScript
+cannot rebuild.
 
 Also note `addZswapOffer` takes a `SegmentSpecifier`, not a number:
 `{ tag: 'specific', value: 3 }` (or `{ tag: 'first' }`, `{ tag: 'guaranteedOnly' }`,

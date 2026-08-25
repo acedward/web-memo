@@ -66,7 +66,8 @@ async function main() {
         const st = JSON.parse(selftest);
         check('S1', 'the vendored WASM reproduces both frozen MemoHashV1 vectors byte-exactly',
             st.ok && st.checks.every((c) => c.pass), JSON.stringify(st.checks));
-        check('S2', 'all 13 memo bindings are present', st.memoPresent === 13, `${st.memoPresent}/13`);
+        check('S2', 'all 14 memo bindings are present',
+            st.memoPresent === 14 && st.memoExpected === 14, `${st.memoPresent}/${st.memoExpected}`);
         check('S3', 'no uncaught page errors while loading', events.errors.length === 0, events.errors.join(' | '));
 
         // ---------------------------------------------------------- phase 2

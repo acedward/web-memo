@@ -1,16 +1,16 @@
 import * as __wbg_star0 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline0.js';
 import * as __wbg_star1 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline1.js';
 import * as __wbg_star2 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline10.js';
-import * as __wbg_star3 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline11.js';
-import * as __wbg_star4 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline12.js';
-import * as __wbg_star5 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline13.js';
-import * as __wbg_star6 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline14.js';
-import * as __wbg_star7 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline15.js';
-import * as __wbg_star8 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline16.js';
-import * as __wbg_star9 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline17.js';
-import * as __wbg_star10 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline18.js';
-import * as __wbg_star11 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline2.js';
-import * as __wbg_star12 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline20.js';
+import * as __wbg_star3 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline12.js';
+import * as __wbg_star4 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline17.js';
+import * as __wbg_star5 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline18.js';
+import * as __wbg_star6 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline19.js';
+import * as __wbg_star7 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline2.js';
+import * as __wbg_star8 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline20.js';
+import * as __wbg_star9 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline21.js';
+import * as __wbg_star10 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline22.js';
+import * as __wbg_star11 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline23.js';
+import * as __wbg_star12 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline24.js';
 import * as __wbg_star13 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline25.js';
 import * as __wbg_star14 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline3.js';
 import * as __wbg_star15 from './snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline4.js';
@@ -305,6 +305,414 @@ export function createCoinInfo(type_, value) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Read a bech32m rendering back to canonical bytes, requiring the prefix.
+ *
+ * Accepting any prefix would let a string minted for a different artifact
+ * type be read as a wrapper, so the expected prefix is always checked.
+ * @param {string} text
+ * @param {string | null} [hrp]
+ * @returns {Uint8Array}
+ */
+export function memoWrapperFromBech32m(text, hrp) {
+    const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    var ptr1 = isLikeNone(hrp) ? 0 : passStringToWasm0(hrp, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len1 = WASM_VECTOR_LEN;
+    const ret = wasm.memoWrapperFromBech32m(ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Every version 1 anchor inside raw transaction or offer bytes, in offset
+ * order, as `{ offset, length, nullifier, h }`.
+ *
+ * Returns **all** sightings without deduplicating: an anchor must be selected
+ * by its decoded `(nullifier, h)`, never by position, because output order is
+ * assigned by the ledger's own sorting rather than by the constructor.
+ * @param {Uint8Array} bytes
+ * @returns {Array<any>}
+ */
+export function memoAnchorScan(bytes) {
+    const ret = wasm.memoAnchorScan(bytes);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Parse wrapper bytes into their fields.
+ *
+ * **Parsing is not verifying.** The returned `memo` is the memo *as parsed*;
+ * it must not be shown as authenticated until [`memo_wrapper_verify`]
+ * succeeds. The key is named `unverifiedMemo` so that a caller cannot reach
+ * for it by accident.
+ * @param {Uint8Array} bytes
+ * @returns {object}
+ */
+export function memoWrapperParse(bytes) {
+    const ret = wasm.memoWrapperParse(bytes);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Decode untagged anchor bytes to `{ nullifier, h }`.
+ *
+ * Throws — with the specific rule that failed — for anything that is not a
+ * version 1 anchor: a wrong marker, an unknown version, a non-canonical point
+ * or nullifier split, a zero `h`, a non-zero reserved field, truncation, or
+ * trailing bytes.
+ * @param {Uint8Array} bytes
+ * @returns {object}
+ */
+export function memoAnchorDecode(bytes) {
+    const ret = wasm.memoAnchorDecode(bytes);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * The bech32m prefix these bindings default to. **Provisional.**
+ * @returns {string}
+ */
+export function memoWrapperDefaultHrp() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.memoWrapperDefaultHrp();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * The version 1 anchor ciphertext for `(nullifier, h)`, in the **untagged**
+ * form that appears inside a serialized transaction.
+ * @param {Uint8Array} nullifier
+ * @param {Uint8Array} h
+ * @returns {Uint8Array}
+ */
+export function memoAnchorEncode(nullifier, h) {
+    const ret = wasm.memoAnchorEncode(nullifier, h);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Build the ordinary **zero-value** output that carries an anchor.
+ *
+ * A typed memo-anchor constructor rather than an "arbitrary ciphertext"
+ * escape hatch: the value is zero, the token type is the attributed input's,
+ * the nonce is fresh, and the recipient key pair is generated and dropped
+ * inside, so the anchor coin is unspendable by anyone — its creator included.
+ *
+ * `tokenType` is the **tagged** hex serialization of a `ShieldedTokenType` —
+ * exactly what [`memo_anchor_token_type_of`] returns, so the documented pair
+ * composes:
+ *
+ * ```text
+ * createMemoAnchorOutput(segment, memoAnchorTokenTypeOf(coin), nullifier, h)
+ * ```
+ *
+ * Tagged, not bare: the 33-byte `midnight:shielded-token-type[v1]:` prefix is
+ * what makes a value of some *other* type — a coin commitment, an unshielded
+ * token type, a raw nonce — a loud refusal naming the expected tag rather than
+ * 32 bytes silently reinterpreted as a token type. Nothing else in the
+ * construction would catch that: the anchor would encode, the output would
+ * prove, and the carrier would simply be of the wrong type. A bare
+ * 64-hex-character `coin.type` string is therefore **rejected**; wrap it with
+ * [`memo_anchor_token_type_of`].
+ *
+ * Add the result to the offer **before** balancing and proving: the output
+ * proof binds the ciphertext, so an anchor cannot be grafted onto an
+ * already-proved transaction.
+ * @param {number | null | undefined} segment
+ * @param {string} token_type
+ * @param {Uint8Array} nullifier
+ * @param {Uint8Array} h
+ * @returns {ZswapOutput}
+ */
+export function createMemoAnchorOutput(segment, token_type, nullifier, h) {
+    const ptr0 = passStringToWasm0(token_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.createMemoAnchorOutput(isLikeNone(segment) ? 0xFFFFFF : segment, ptr0, len0, nullifier, h);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ZswapOutput.__wrap(ret[0]);
+}
+
+/**
+ * Assemble a wrapper from its parts and return its canonical bytes.
+ *
+ * `statementTail` is the concatenation of statement rows `1..INPUT_PIS`, each
+ * 32 little-endian bytes; `companionProof` is the tagged detached proof.
+ * `locator` is optional and is **never trusted as proof** by any verifier.
+ * @param {Uint8Array} memo
+ * @param {Uint8Array} nullifier
+ * @param {number} segment
+ * @param {Uint8Array} statement_tail
+ * @param {Uint8Array} companion_proof
+ * @param {Uint8Array | null} [locator]
+ * @returns {Uint8Array}
+ */
+export function memoWrapperBuild(memo, nullifier, segment, statement_tail, companion_proof, locator) {
+    const ret = wasm.memoWrapperBuild(memo, nullifier, segment, statement_tail, companion_proof, isLikeNone(locator) ? 0 : addToExternrefTable0(locator));
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * `h = MemoHashV1(memo)`, returned as 32 little-endian bytes.
+ *
+ * Throws if the memo is empty or longer than 512 bytes — absence is
+ * represented by having no memo at all, never by a zero-length one.
+ * @param {Uint8Array} memo
+ * @returns {Uint8Array}
+ */
+export function memoHashV1(memo) {
+    const ret = wasm.memoHashV1(memo);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * The `statementTail` argument [`memo_wrapper_build`] asks for: spend
+ * statement rows `1..INPUT_PIS`, each 32 little-endian bytes, concatenated.
+ *
+ * ```text
+ * const tail = memoSpendStatementTail(input, segment);
+ * const wrapper = memoWrapperBuild(memo, input.nullifier bytes, segment,
+ *                                  tail, companionProof);
+ * ```
+ *
+ * **Row 0 is deliberately absent.** Row 0 is the binding input — the reserved
+ * zero for a canonical spend, `h = MemoHashV1(memo)` for a companion — and a
+ * wrapper never carries it, because a verifier derives `h` from the memo bytes
+ * it is checking rather than reading it from the artifact under test. Carrying
+ * row 0 would create exactly the second source of truth the format exists to
+ * avoid. Everything after row 0 is independent of it, which is why this
+ * binding needs no memo and no `h`.
+ *
+ * The tail is public, and it is a **cross-check, not evidence**:
+ * [`memo_wrapper_verify`] rebuilds these rows from the settled offer's own
+ * input and refuses any wrapper that disagrees, so a wrong tail is caught
+ * there rather than trusted here.
+ *
+ * `input` may be unproven, proven, or proof-erased — the rows read only public
+ * fields, so a caller may take the tail from the input it just constructed and
+ * the bytes still match the input that later settles. `segment` must be the
+ * segment the offer settles at; a mismatch is refused by
+ * [`memo_wrapper_verify`].
+ *
+ * Throws if the input is contract-owned (no such wrapper can ever verify), or
+ * if the statement length is not the one a version 1 wrapper carries.
+ * @param {ZswapInput} input
+ * @param {number} segment
+ * @returns {Uint8Array}
+ */
+export function memoSpendStatementTail(input, segment) {
+    _assertClass(input, ZswapInput);
+    const ret = wasm.memoSpendStatementTail(input.__wbg_ptr, segment);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Render canonical wrapper bytes as bech32m.
+ *
+ * Raw bytes stay canonical — this is the display and transport form. `hrp`
+ * defaults to `swapmsg`, which is a **proposal** rather than a ratified
+ * prefix, which is why it is a parameter.
+ * @param {Uint8Array} bytes
+ * @param {string | null} [hrp]
+ * @returns {string}
+ */
+export function memoWrapperToBech32m(bytes, hrp) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        var ptr0 = isLikeNone(hrp) ? 0 : passStringToWasm0(hrp, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        const ret = wasm.memoWrapperToBech32m(bytes, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Build the proof-server `/prove` payload that asks for the **companion**
+ * proof of `memo` over `serializedPreimage`.
+ *
+ * This is `createProvingPayload` with the binding input derived from the memo
+ * bytes rather than supplied by the caller, so a JS consumer cannot ask for a
+ * companion over the wrong `h` — the one mistake that would produce a proof
+ * which verifies against nothing.
+ *
+ * **Accepting the override is not evidence that a backend honoured it.** A
+ * backend that takes the parameter and then proves the original row-0-zero
+ * preimage returns a proof that verifies at row 0 = 0 and fails at row 0 =
+ * `h`. Before trusting a backend, check the returned proof against the
+ * companion statement **and** confirm it does *not* verify at row 0 = 0.
+ * @param {Uint8Array} serialized_preimage
+ * @param {Uint8Array} memo
+ * @param {any} key_material
+ * @returns {Uint8Array}
+ */
+export function createMemoCompanionProvingPayload(serialized_preimage, memo, key_material) {
+    const ret = wasm.createMemoCompanionProvingPayload(serialized_preimage, memo, key_material);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * The shielded token type of a coin as **tagged** hex, for
+ * [`create_memo_anchor_output`].
+ *
+ * A convenience so a caller does not have to reach into a coin object and
+ * re-serialize a field by hand — getting that wrong would produce an anchor
+ * carrier of the wrong token type, which nothing else would catch.
+ *
+ * The string carries the 33-byte `midnight:shielded-token-type[v1]:` tag, and
+ * [`create_memo_anchor_output`] requires that tag, so the two compose as
+ * written:
+ *
+ * ```text
+ * createMemoAnchorOutput(segment, memoAnchorTokenTypeOf(coin), nullifier, h)
+ * ```
+ *
+ * This is **not** the bare untagged encoding `createShieldedCoinInfo` takes,
+ * and it is deliberately not: the tag is what turns "some 32 bytes" into "a
+ * shielded token type", so a value of another type is refused instead of being
+ * reinterpreted.
+ * @param {any} coin
+ * @returns {string}
+ */
+export function memoAnchorTokenTypeOf(coin) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ret = wasm.memoAnchorTokenTypeOf(coin);
+        var ptr1 = ret[0];
+        var len1 = ret[1];
+        if (ret[3]) {
+            ptr1 = 0; len1 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred2_0 = ptr1;
+        deferred2_1 = len1;
+        return getStringFromWasm0(ptr1, len1);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
+ * Verify a companion wrapper against a **settled, proven** Zswap offer.
+ *
+ * `offer` is the tagged serialization of a proven `Offer`. `segment` is the
+ * segment the offer settled at.
+ *
+ * On success the returned object carries the now-authenticated memo, the
+ * input it is attributed to, and the settled anchors whose decoded
+ * `(nullifier, h)` match. An **empty** `matchingAnchors` is not a failure: it
+ * means the companion authenticated the memo but no matching anchor was found
+ * in the offer that was checked, which is a weaker state a reader must
+ * present as such. `duplicateAnchors` is an anomaly worth surfacing and is
+ * **not** a reason to downgrade authentication.
+ *
+ * Throws — with the specific rule that failed — for a nullifier that is not
+ * in the offer, a contract-owned carrier, a segment mismatch, a statement row
+ * that disagrees with the verifier's own rebuild, unreadable proof bytes, or
+ * a proof that does not bind the memo.
+ * @param {Uint8Array} wrapper
+ * @param {Uint8Array} offer
+ * @param {number} segment
+ * @returns {object}
+ */
+export function memoWrapperVerify(wrapper, offer, segment) {
+    const ret = wasm.memoWrapperVerify(wrapper, offer, segment);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @param {any} utxo
+ * @param {Date} now
+ * @param {bigint} subtract_fee
+ * @param {bigint} new_commitment_index
+ * @param {any} gen_info
+ * @param {DustSecretKey} sk
+ * @param {DustParameters} dust_parameters
+ * @returns {any}
+ */
+export function successorDustUtxo(utxo, now, subtract_fee, new_commitment_index, gen_info, sk, dust_parameters) {
+    _assertClass(sk, DustSecretKey);
+    _assertClass(dust_parameters, DustParameters);
+    const ret = wasm.successorDustUtxo(utxo, now, subtract_fee, new_commitment_index, gen_info, sk.__wbg_ptr, dust_parameters.__wbg_ptr);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @param {Date} ctime
+ * @param {bigint} initial_value
+ * @param {any} gen_info
+ * @param {Date} now
+ * @param {any} params
+ * @returns {bigint}
+ */
+export function updatedValue(ctime, initial_value, gen_info, now, params) {
+    const ret = wasm.updatedValue(ctime, initial_value, gen_info, now, params);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @returns {DustSecretKey}
+ */
+export function sampleDustSecretKey() {
+    const ret = wasm.sampleDustSecretKey();
+    return DustSecretKey.__wrap(ret);
 }
 
 /**
@@ -641,341 +1049,6 @@ export function dustNonce(initial_nonce, seq, sk) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * @param {any} utxo
- * @param {Date} now
- * @param {bigint} subtract_fee
- * @param {bigint} new_commitment_index
- * @param {any} gen_info
- * @param {DustSecretKey} sk
- * @param {DustParameters} dust_parameters
- * @returns {any}
- */
-export function successorDustUtxo(utxo, now, subtract_fee, new_commitment_index, gen_info, sk, dust_parameters) {
-    _assertClass(sk, DustSecretKey);
-    _assertClass(dust_parameters, DustParameters);
-    const ret = wasm.successorDustUtxo(utxo, now, subtract_fee, new_commitment_index, gen_info, sk.__wbg_ptr, dust_parameters.__wbg_ptr);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * @param {Date} ctime
- * @param {bigint} initial_value
- * @param {any} gen_info
- * @param {Date} now
- * @param {any} params
- * @returns {bigint}
- */
-export function updatedValue(ctime, initial_value, gen_info, now, params) {
-    const ret = wasm.updatedValue(ctime, initial_value, gen_info, now, params);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * @returns {DustSecretKey}
- */
-export function sampleDustSecretKey() {
-    const ret = wasm.sampleDustSecretKey();
-    return DustSecretKey.__wrap(ret);
-}
-
-/**
- * The bech32m prefix these bindings default to. **Provisional.**
- * @returns {string}
- */
-export function memoWrapperDefaultHrp() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.memoWrapperDefaultHrp();
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-    }
-}
-
-/**
- * Every version 1 anchor inside raw transaction or offer bytes, in offset
- * order, as `{ offset, length, nullifier, h }`.
- *
- * Returns **all** sightings without deduplicating: an anchor must be selected
- * by its decoded `(nullifier, h)`, never by position, because output order is
- * assigned by the ledger's own sorting rather than by the constructor.
- * @param {Uint8Array} bytes
- * @returns {Array<any>}
- */
-export function memoAnchorScan(bytes) {
-    const ret = wasm.memoAnchorScan(bytes);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Verify a companion wrapper against a **settled, proven** Zswap offer.
- *
- * `offer` is the tagged serialization of a proven `Offer`. `segment` is the
- * segment the offer settled at.
- *
- * On success the returned object carries the now-authenticated memo, the
- * input it is attributed to, and the settled anchors whose decoded
- * `(nullifier, h)` match. An **empty** `matchingAnchors` is not a failure: it
- * means the companion authenticated the memo but no matching anchor was found
- * in the offer that was checked, which is a weaker state a reader must
- * present as such. `duplicateAnchors` is an anomaly worth surfacing and is
- * **not** a reason to downgrade authentication.
- *
- * Throws — with the specific rule that failed — for a nullifier that is not
- * in the offer, a contract-owned carrier, a segment mismatch, a statement row
- * that disagrees with the verifier's own rebuild, unreadable proof bytes, or
- * a proof that does not bind the memo.
- * @param {Uint8Array} wrapper
- * @param {Uint8Array} offer
- * @param {number} segment
- * @returns {object}
- */
-export function memoWrapperVerify(wrapper, offer, segment) {
-    const ret = wasm.memoWrapperVerify(wrapper, offer, segment);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Decode untagged anchor bytes to `{ nullifier, h }`.
- *
- * Throws — with the specific rule that failed — for anything that is not a
- * version 1 anchor: a wrong marker, an unknown version, a non-canonical point
- * or nullifier split, a zero `h`, a non-zero reserved field, truncation, or
- * trailing bytes.
- * @param {Uint8Array} bytes
- * @returns {object}
- */
-export function memoAnchorDecode(bytes) {
-    const ret = wasm.memoAnchorDecode(bytes);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Build the proof-server `/prove` payload that asks for the **companion**
- * proof of `memo` over `serializedPreimage`.
- *
- * This is `createProvingPayload` with the binding input derived from the memo
- * bytes rather than supplied by the caller, so a JS consumer cannot ask for a
- * companion over the wrong `h` — the one mistake that would produce a proof
- * which verifies against nothing.
- *
- * **Accepting the override is not evidence that a backend honoured it.** A
- * backend that takes the parameter and then proves the original row-0-zero
- * preimage returns a proof that verifies at row 0 = 0 and fails at row 0 =
- * `h`. Before trusting a backend, check the returned proof against the
- * companion statement **and** confirm it does *not* verify at row 0 = 0.
- * @param {Uint8Array} serialized_preimage
- * @param {Uint8Array} memo
- * @param {any} key_material
- * @returns {Uint8Array}
- */
-export function createMemoCompanionProvingPayload(serialized_preimage, memo, key_material) {
-    const ret = wasm.createMemoCompanionProvingPayload(serialized_preimage, memo, key_material);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * The version 1 anchor ciphertext for `(nullifier, h)`, in the **untagged**
- * form that appears inside a serialized transaction.
- * @param {Uint8Array} nullifier
- * @param {Uint8Array} h
- * @returns {Uint8Array}
- */
-export function memoAnchorEncode(nullifier, h) {
-    const ret = wasm.memoAnchorEncode(nullifier, h);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Build the ordinary **zero-value** output that carries an anchor.
- *
- * A typed memo-anchor constructor rather than an "arbitrary ciphertext"
- * escape hatch: the value is zero, the token type is the attributed input's,
- * the nonce is fresh, and the recipient key pair is generated and dropped
- * inside, so the anchor coin is unspendable by anyone — its creator included.
- *
- * `tokenType` is the hex-serialized `ShieldedTokenType` the rest of this API
- * already uses. Add the result to the offer **before** balancing and proving:
- * the output proof binds the ciphertext, so an anchor cannot be grafted onto
- * an already-proved transaction.
- * @param {number | null | undefined} segment
- * @param {string} token_type
- * @param {Uint8Array} nullifier
- * @param {Uint8Array} h
- * @returns {ZswapOutput}
- */
-export function createMemoAnchorOutput(segment, token_type, nullifier, h) {
-    const ptr0 = passStringToWasm0(token_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.createMemoAnchorOutput(isLikeNone(segment) ? 0xFFFFFF : segment, ptr0, len0, nullifier, h);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return ZswapOutput.__wrap(ret[0]);
-}
-
-/**
- * Parse wrapper bytes into their fields.
- *
- * **Parsing is not verifying.** The returned `memo` is the memo *as parsed*;
- * it must not be shown as authenticated until [`memo_wrapper_verify`]
- * succeeds. The key is named `unverifiedMemo` so that a caller cannot reach
- * for it by accident.
- * @param {Uint8Array} bytes
- * @returns {object}
- */
-export function memoWrapperParse(bytes) {
-    const ret = wasm.memoWrapperParse(bytes);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * `h = MemoHashV1(memo)`, returned as 32 little-endian bytes.
- *
- * Throws if the memo is empty or longer than 512 bytes — absence is
- * represented by having no memo at all, never by a zero-length one.
- * @param {Uint8Array} memo
- * @returns {Uint8Array}
- */
-export function memoHashV1(memo) {
-    const ret = wasm.memoHashV1(memo);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Assemble a wrapper from its parts and return its canonical bytes.
- *
- * `statementTail` is the concatenation of statement rows `1..INPUT_PIS`, each
- * 32 little-endian bytes; `companionProof` is the tagged detached proof.
- * `locator` is optional and is **never trusted as proof** by any verifier.
- * @param {Uint8Array} memo
- * @param {Uint8Array} nullifier
- * @param {number} segment
- * @param {Uint8Array} statement_tail
- * @param {Uint8Array} companion_proof
- * @param {Uint8Array | null} [locator]
- * @returns {Uint8Array}
- */
-export function memoWrapperBuild(memo, nullifier, segment, statement_tail, companion_proof, locator) {
-    const ret = wasm.memoWrapperBuild(memo, nullifier, segment, statement_tail, companion_proof, isLikeNone(locator) ? 0 : addToExternrefTable0(locator));
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Read a bech32m rendering back to canonical bytes, requiring the prefix.
- *
- * Accepting any prefix would let a string minted for a different artifact
- * type be read as a wrapper, so the expected prefix is always checked.
- * @param {string} text
- * @param {string | null} [hrp]
- * @returns {Uint8Array}
- */
-export function memoWrapperFromBech32m(text, hrp) {
-    const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    var ptr1 = isLikeNone(hrp) ? 0 : passStringToWasm0(hrp, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len1 = WASM_VECTOR_LEN;
-    const ret = wasm.memoWrapperFromBech32m(ptr0, len0, ptr1, len1);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * The shielded token type of a coin, hex-serialized, for
- * [`create_memo_anchor_output`].
- *
- * A convenience so a caller does not have to reach into a coin object and
- * re-serialize a field by hand — getting that wrong would produce an anchor
- * carrier of the wrong token type, which nothing else would catch.
- * @param {any} coin
- * @returns {string}
- */
-export function memoAnchorTokenTypeOf(coin) {
-    let deferred2_0;
-    let deferred2_1;
-    try {
-        const ret = wasm.memoAnchorTokenTypeOf(coin);
-        var ptr1 = ret[0];
-        var len1 = ret[1];
-        if (ret[3]) {
-            ptr1 = 0; len1 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred2_0 = ptr1;
-        deferred2_1 = len1;
-        return getStringFromWasm0(ptr1, len1);
-    } finally {
-        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
-    }
-}
-
-/**
- * Render canonical wrapper bytes as bech32m.
- *
- * Raw bytes stay canonical — this is the display and transport form. `hrp`
- * defaults to `swapmsg`, which is a **proposal** rather than a ratified
- * prefix, which is why it is a parameter.
- * @param {Uint8Array} bytes
- * @param {string | null} [hrp]
- * @returns {string}
- */
-export function memoWrapperToBech32m(bytes, hrp) {
-    let deferred3_0;
-    let deferred3_1;
-    try {
-        var ptr0 = isLikeNone(hrp) ? 0 : passStringToWasm0(hrp, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
-        const ret = wasm.memoWrapperToBech32m(bytes, ptr0, len0);
-        var ptr2 = ret[0];
-        var len2 = ret[1];
-        if (ret[3]) {
-            ptr2 = 0; len2 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred3_0 = ptr2;
-        deferred3_1 = len2;
-        return getStringFromWasm0(ptr2, len2);
-    } finally {
-        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-    }
 }
 
 /**
@@ -1759,16 +1832,16 @@ export function runProgram(initial, ops, cost_model, gas_limit) {
     return VmResults.__wrap(ret[0]);
 }
 
-function __wbg_adapter_8(arg0, arg1, arg2) {
-    wasm.closure4166_externref_shim(arg0, arg1, arg2);
+function __wbg_adapter_14(arg0, arg1, arg2) {
+    wasm.closure4171_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_872(arg0, arg1, arg2, arg3) {
-    wasm.closure4230_externref_shim(arg0, arg1, arg2, arg3);
+function __wbg_adapter_873(arg0, arg1, arg2, arg3) {
+    wasm.closure4235_externref_shim(arg0, arg1, arg2, arg3);
 }
 
-function __wbg_adapter_939(arg0, arg1, arg2, arg3, arg4) {
-    wasm.closure4228_externref_shim(arg0, arg1, arg2, arg3, arg4);
+function __wbg_adapter_940(arg0, arg1, arg2, arg3, arg4) {
+    wasm.closure4233_externref_shim(arg0, arg1, arg2, arg3, arg4);
 }
 
 const __wbindgen_enum_ReadableStreamType = ["bytes"];
@@ -10560,7 +10633,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_939(a, state0.b, arg0, arg1, arg2);
+                    return __wbg_adapter_940(a, state0.b, arg0, arg1, arg2);
                 } finally {
                     state0.a = a;
                 }
@@ -10577,7 +10650,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_872(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_873(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -10753,7 +10826,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_872(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_873(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -11095,11 +11168,6 @@ function __wbg_get_imports() {
         const ret = (BigInt.asUintN(64, arg0) | (arg1 << BigInt(64)));
         return ret;
     };
-    imports.wbg.__wbindgen_cast_3b61e3c5db87cc53 = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 4165, function: Function { arguments: [Externref], shim_idx: 4166, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-        const ret = makeMutClosure(arg0, arg1, 4165, __wbg_adapter_8);
-        return ret;
-    };
     imports.wbg.__wbindgen_cast_4625c577ab2ec9ee = function(arg0) {
         // Cast intrinsic for `U64 -> Externref`.
         const ret = BigInt.asUintN(64, arg0);
@@ -11108,6 +11176,11 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_cast_9ae0607507abb057 = function(arg0) {
         // Cast intrinsic for `I64 -> Externref`.
         const ret = arg0;
+        return ret;
+    };
+    imports.wbg.__wbindgen_cast_c98679352c566f34 = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 4170, function: Function { arguments: [Externref], shim_idx: 4171, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        const ret = makeMutClosure(arg0, arg1, 4170, __wbg_adapter_14);
         return ret;
     };
     imports.wbg.__wbindgen_cast_cb9088102bce6b30 = function(arg0, arg1) {
@@ -11138,16 +11211,16 @@ function __wbg_get_imports() {
     imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline0.js'] = __wbg_star0;
     imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline1.js'] = __wbg_star1;
     imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline10.js'] = __wbg_star2;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline11.js'] = __wbg_star3;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline12.js'] = __wbg_star4;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline13.js'] = __wbg_star5;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline14.js'] = __wbg_star6;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline15.js'] = __wbg_star7;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline16.js'] = __wbg_star8;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline17.js'] = __wbg_star9;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline18.js'] = __wbg_star10;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline2.js'] = __wbg_star11;
-    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline20.js'] = __wbg_star12;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline12.js'] = __wbg_star3;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline17.js'] = __wbg_star4;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline18.js'] = __wbg_star5;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline19.js'] = __wbg_star6;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline2.js'] = __wbg_star7;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline20.js'] = __wbg_star8;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline21.js'] = __wbg_star9;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline22.js'] = __wbg_star10;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline23.js'] = __wbg_star11;
+    imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline24.js'] = __wbg_star12;
     imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline25.js'] = __wbg_star13;
     imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline3.js'] = __wbg_star14;
     imports['./snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline4.js'] = __wbg_star15;

@@ -1,1 +1,1 @@
-import * as wasm from '#self'; export function PrePartitionContractCall_() { return wasm.PrePartitionContractCall; }
+import * as wasm from '#self'; export function Intent_() { return wasm.Intent; }

@@ -1,1 +1,1 @@
-import * as wasm from '#self'; export function VerifierKeyInsert_() { return wasm.VerifierKeyInsert; }
+import * as wasm from '#self'; export function Binding_() { return wasm.Binding; }

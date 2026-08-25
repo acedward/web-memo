@@ -1,1 +1,1 @@
-import * as wasm from '#self'; export function IrInsert_() { return wasm.IrInsert; }
+import * as wasm from '#self'; export function DustRegistration_() { return wasm.DustRegistration; }

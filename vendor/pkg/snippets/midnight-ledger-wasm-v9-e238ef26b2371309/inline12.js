@@ -1,1 +1,1 @@
-import * as wasm from '#self'; export function IrRemove_() { return wasm.IrRemove; }
+import * as wasm from '#self'; export function SignatureEnabled_() { return wasm.SignatureEnabled; }

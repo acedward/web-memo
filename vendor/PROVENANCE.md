@@ -15,21 +15,22 @@ for the one file that is *omitted* (and why), which is the only difference.
 | --- | --- |
 | Source repository | <https://github.com/acedward/midnight-ledger> — public fork of <https://github.com/midnightntwrk/midnight-ledger> |
 | Branch | `00003-spend-proof-memo-binding` |
-| **Commit** | **`da1d2f04a900c833b45c8f74b1afcf51811e02f5`** |
+| **Commit** | **`32fdefc3cb310a823b9bd04fc13ab4c66a92cae3`** |
 | Tracking PR | [acedward/midnight-ledger#2](https://github.com/acedward/midnight-ledger/pull/2) (fork-internal, OPEN) |
 | Upstream baseline of that branch | `4823b5351b17cc49e30f19760dbd30a73cf95e22` — tag `ledger-9.1.0.0-rc.3`, published as `@midnightntwrk/ledger-v9@1.0.0-rc.3` |
 | Crate | `ledger-wasm` (package `midnight-ledger-wasm-v9` `1.0.0-rc.3`) |
 
-**This pin is expected to move.** Two accepted upstream changes are inbound on
-the same branch (making the memo-anchor token-type helpers compose, and adding a
-binding that exposes the spend statement tail). When they land, re-run the build
-command below at the new commit, re-vendor, regenerate `SHA256SUMS`, and update
-the commit and sums in this file — the branch is append-only, so the pin above
-stays reproducible either way.
+**Pin history.** The first vendored build of this repository was
+`da1d2f04a900c833b45c8f74b1afcf51811e02f5`. The branch then gained two appended
+commits — a **fast-forward, never a force-push or a rebase** — so `da1d2f04`
+remains reachable and every measurement taken against it stays reproducible.
+This directory now holds the build of the branch tip, `32fdefc3`.
 
-The branch is exactly five commits on top of the upstream baseline:
+The branch is exactly seven commits on top of the upstream baseline:
 
 ```
+32fdefc  ledger-wasm: createMemoAnchorOutput reads the TAGGED token type
+121aa16  ledger-wasm: expose the spend-statement tail to JavaScript
 da1d2f0  ledger-wasm: JavaScript bindings for spend-proof memo binding
 5788a17  zswap: frozen cross-implementation conformance vectors for the memo helpers
 a1f480e  zswap: additive spend-proof memo binding helpers
@@ -37,10 +38,39 @@ bd899b5  zkir-wasm: honour overwrite_binding_input on the legacy verifier-key[v6
 181ad3f  build-input only: refresh the stale workspace Cargo.lock
 ```
 
-The three memo commits are **additive only** — 21 files, +6487 and −0 lines — so
-every circuit, key, trusted setup, wire tag and validity surface is byte-identical
-to the upstream baseline *by construction*. The two remaining commits are a stale
-`Cargo.lock` refresh and a `zkir-wasm` fix on the legacy verifier-key[v6] arm.
+The memo commits are **additive only** with respect to consensus surface — 23
+files across the whole branch — so every circuit, key, trusted setup, wire tag
+and validity surface is byte-identical to the upstream baseline *by
+construction*. The two remaining commits are a stale `Cargo.lock` refresh and a
+`zkir-wasm` fix on the legacy verifier-key[v6] arm.
+
+### What the two appended commits change for a JavaScript caller
+
+Both touch `ledger-wasm/src/memo_wasm.rs` only (+489 / −15 lines combined).
+
+- **`121aa16` adds `memoSpendStatementTail(input: ZswapInput, segment: number):
+  Uint8Array`** — the `statementTail` argument `memoWrapperBuild` requires,
+  namely spend-statement rows `1..INPUT_PIS` as 67 × 32 = 2144 little-endian
+  bytes. It calls the certified producer `zswap::verify::spend_statement` and
+  does no row arithmetic of its own beyond dropping row 0. The tail does not
+  depend on row 0, so no memo hash is needed to derive it, and unproven, proven
+  and proof-erased inputs are all accepted. Contract-owned inputs are refused —
+  no wrapper over one could ever verify. Without this binding a browser could
+  build a memo-anchored offer but could not assemble the wrapper that
+  authenticates it.
+- **`32fdefc` is a BREAKING behaviour change** to an existing export:
+  `createMemoAnchorOutput` now parses its `tokenType` with `tagged_deserialize`,
+  so the documented pairing composes:
+
+  ```js
+  createMemoAnchorOutput(segment, memoAnchorTokenTypeOf(coin), nullifier, h)
+  ```
+
+  A bare untagged 64-hex string — which is what a coin object's own `.type`
+  field carries, and what worked at `da1d2f04` — is now **refused**, with an
+  error naming the expected tag `midnight:shielded-token-type[v1]:`. Code
+  written against the older pin must be updated; see
+  [`docs/js-api-notes.md`](../docs/js-api-notes.md) §5.
 
 ## Build command
 
@@ -50,7 +80,7 @@ pointed **outside** the source tree so the checkout stays pristine.
 ```sh
 git clone https://github.com/acedward/midnight-ledger.git
 cd midnight-ledger
-git checkout da1d2f04a900c833b45c8f74b1afcf51811e02f5
+git checkout 32fdefc3cb310a823b9bd04fc13ab4c66a92cae3
 
 RUSTUP_TOOLCHAIN=1.95.0 \
 CARGO_TARGET_DIR=/some/path/outside/the/tree \
@@ -80,12 +110,20 @@ load-bearing for deployment, not a nicety:
 
 | | `.wasm` size | vs Cloudflare Pages' 25 MiB per-file limit |
 | --- | --- | --- |
-| `--no-opt` (the upstream 00003 recipe) | 25 553 837 B = **24.37 MiB** | 1.6 % of headroom |
-| optimised (what is vendored) | 20 188 188 B = **19.25 MiB** | **23 % of headroom** |
+| `--no-opt` (the upstream 00003 recipe), at `da1d2f04` | 25 553 837 B = **24.37 MiB** | 1.6 % of headroom |
+| optimised, at `da1d2f04` | 20 188 188 B = **19.25 MiB** | 23 % of headroom |
+| optimised, at `32fdefc3` (**what is vendored**) | 20 180 639 B = **19.25 MiB** | **23.0 % of headroom (6 033 761 B spare)** |
 
 `wasm-opt` also renumbers one generated adapter in the JS glue
 (`__wbg_adapter_16` → `__wbg_adapter_8`, a 2-byte difference in the file); the
 `.d.ts` files are byte-identical between the two builds.
+
+Note that `wasm-bindgen` distributes the 26 `snippets/**/inlineN.js` shims over
+the file names in an order that is not stable across builds: 25 of the 26 files
+changed content between the `da1d2f04` and `32fdefc3` builds, but the *set* of
+26 exported class shims is identical. Nothing there is hand-written, so a
+reordering is expected and harmless — the import map keys on `#self`, not on a
+file name.
 
 ### No `#self` patch is applied
 
@@ -153,22 +191,27 @@ The two files that matter most:
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `midnight_ledger_wasm_v9_bg.wasm` | 20 188 188 | `7fc4bb1020c96fb774cfaad2c91c817873f17f9a1abd9ab3a42d406df8ea8cb0` |
-| `midnight_ledger_wasm_v9.js` | 351 248 | `a4ee8f7bc9ce221af7d82e2ee329b05f31c6acc410952beb518957b9f4a2cd09` |
+| `midnight_ledger_wasm_v9_bg.wasm` | 20 180 639 | `00bad7b9adc0c855761a2a500a30af2f48a115861a4a1d09a6cc2845e7056995` |
+| `midnight_ledger_wasm_v9.js` | 354 507 | `18a735405afac85adea121314c7a6ff9f22a510df2208da87572d2bca100e829` |
 
 Also recorded, so the mapping to the source is checkable at a glance:
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `midnight_ledger_wasm_v9.d.ts` | 102 767 | `f1546abb5585a50895c62491c97be0fafa3cda965184adf57a9bed334ff5d98d` |
-| `midnight_ledger_wasm_v9_bg.wasm.d.ts` | 60 590 | `cd1b4d11bfa10c72c13ec1705d7a129bb158b3b0ed76dcf7b99e2e7c29d7631c` |
+| `midnight_ledger_wasm_v9.d.ts` | 105 835 | `b8be822a2e2e26608cec58f2f7747c9c51e0f3035f23eeb93e47fce1e8938856` |
+| `midnight_ledger_wasm_v9_bg.wasm.d.ts` | 60 679 | `cd621ff3985aaf06288861d4ebdd73cff908a07adbeb3cd1393e4c7602457ca6` |
 | `package.json` | 365 | `67f5d457519161de1546e23b6d49c0188796c9acbc872420b59eeaf8a0b86598` |
 | `README.md` | 4 116 | `c1686acb03464c705ef3824a4178c5cbe6114e5f60eb74679e13321b218e6744` |
 | `snippets/midnight-ledger-wasm-v9-e238ef26b2371309/inline0.js` … `inline25.js` | 26 files | see `SHA256SUMS` |
 
+For reference, the sums of the superseded `da1d2f04` build this directory used
+to hold: `.wasm` 20 188 188 B `7fc4bb1020c96fb774cfaad2c91c817873f17f9a1abd9ab3a42d406df8ea8cb0`,
+`.js` 351 248 B `a4ee8f7bc9ce221af7d82e2ee329b05f31c6acc410952beb518957b9f4a2cd09`,
+`.d.ts` 102 767 B `f1546abb5585a50895c62491c97be0fafa3cda965184adf57a9bed334ff5d98d`.
+
 **What this does and does not prove.** `SHA256SUMS` proves the vendored files are
 the ones this document describes. It does **not** prove they are what commit
-`da1d2f04` produces — only a rebuild does that, and rebuilds of the same source
+`32fdefc3` produces — only a rebuild does that, and rebuilds of the same source
 are expected to be reproducible here because the binary is fully determined by
 the pinned toolchain. There is deliberately no automated rebuild-and-diff job:
 this is a demonstration of a format, and tamper-evidence was explicitly out of

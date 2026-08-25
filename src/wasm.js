@@ -43,7 +43,7 @@ export let initMs = null;
  *
  * Memoised: concurrent and repeat callers share one instantiation.
  *
- * @returns {Promise<object>} the module namespace (all exports, incl. the 13
+ * @returns {Promise<object>} the module namespace (all exports, incl. the 14
  *   memo bindings — see docs/js-api-notes.md for their sharp edges).
  */
 export function loadLedgerWasm() {
@@ -71,7 +71,7 @@ export function loadLedgerWasm() {
     return modulePromise;
 }
 
-/** The 13 memo bindings this project consumes, per 00003. */
+/** The 14 memo bindings this project consumes, per 00003. */
 export const MEMO_EXPORTS = Object.freeze([
     'memoHashV1',
     'memoAnchorEncode',
@@ -80,6 +80,7 @@ export const MEMO_EXPORTS = Object.freeze([
     'memoAnchorTokenTypeOf',
     'createMemoAnchorOutput',
     'createMemoCompanionProvingPayload',
+    'memoSpendStatementTail',
     'memoWrapperBuild',
     'memoWrapperParse',
     'memoWrapperVerify',

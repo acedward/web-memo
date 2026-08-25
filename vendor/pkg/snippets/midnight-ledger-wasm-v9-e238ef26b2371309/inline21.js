@@ -1,1 +1,1 @@
-import * as wasm from '#self'; export function Proof_() { return wasm.Proof; }
+import * as wasm from '#self'; export function VerifierKeyInsert_() { return wasm.VerifierKeyInsert; }

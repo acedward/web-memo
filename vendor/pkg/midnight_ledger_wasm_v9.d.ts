@@ -2,33 +2,13 @@
 /* eslint-disable */
 export function partitionTranscripts(calls: any[], params: LedgerParameters): Array<any>;
 export function createCoinInfo(type_: string, value: any): any;
-export function dustFirstNonce(backing_night: string, dust_address: bigint): bigint;
-export function createProvingPayload(serialized_preimage: Uint8Array, overwrite_binding_input: bigint | null | undefined, key_material: any): Uint8Array;
-export function dustNullifier(utxo: any, sk: DustSecretKey): bigint;
-export function createCheckPayload(serialized_preimage: Uint8Array, ir?: Uint8Array | null): Uint8Array;
-export function addressFromKey(key: any): string;
-export function coinNullifier(coin_info: any, coin_secret_key: CoinSecretKey): string;
-export function shieldedToken(): any;
-export function sampleEncryptionPublicKey(): string;
-export function unshieldedToken(): any;
-export function coinCommitment(coin: any, coin_public_key: string): string;
-export function nativeToken(): any;
-export function dustInitialNonce(output_no: bigint, intent_hash: string): string;
-export function feeToken(): any;
-export function sampleCoinPublicKey(): string;
-export function createShieldedCoinInfo(type_: string, value: any): any;
-export function createProvingTransactionPayload(tx: Transaction, proving_data: Map<any, any>): Uint8Array;
-export function dustCommitment(utxo: any): bigint;
-export function parseCheckResult(result: Uint8Array): Array<any>;
-export function sampleIntentHash(): string;
-export function dustNonce(initial_nonce: string, seq: bigint, sk: DustSecretKey): bigint;
-export function successorDustUtxo(utxo: any, now: Date, subtract_fee: bigint, new_commitment_index: bigint, gen_info: any, sk: DustSecretKey, dust_parameters: DustParameters): any;
-export function updatedValue(ctime: Date, initial_value: bigint, gen_info: any, now: Date, params: any): bigint;
-export function sampleDustSecretKey(): DustSecretKey;
 /**
- * The bech32m prefix these bindings default to. **Provisional.**
+ * Read a bech32m rendering back to canonical bytes, requiring the prefix.
+ *
+ * Accepting any prefix would let a string minted for a different artifact
+ * type be read as a wrapper, so the expected prefix is always checked.
  */
-export function memoWrapperDefaultHrp(): string;
+export function memoWrapperFromBech32m(text: string, hrp?: string | null): Uint8Array;
 /**
  * Every version 1 anchor inside raw transaction or offer bytes, in offset
  * order, as `{ offset, length, nullifier, h }`.
@@ -38,6 +18,157 @@ export function memoWrapperDefaultHrp(): string;
  * assigned by the ledger's own sorting rather than by the constructor.
  */
 export function memoAnchorScan(bytes: Uint8Array): Array<any>;
+/**
+ * Parse wrapper bytes into their fields.
+ *
+ * **Parsing is not verifying.** The returned `memo` is the memo *as parsed*;
+ * it must not be shown as authenticated until [`memo_wrapper_verify`]
+ * succeeds. The key is named `unverifiedMemo` so that a caller cannot reach
+ * for it by accident.
+ */
+export function memoWrapperParse(bytes: Uint8Array): object;
+/**
+ * Decode untagged anchor bytes to `{ nullifier, h }`.
+ *
+ * Throws — with the specific rule that failed — for anything that is not a
+ * version 1 anchor: a wrong marker, an unknown version, a non-canonical point
+ * or nullifier split, a zero `h`, a non-zero reserved field, truncation, or
+ * trailing bytes.
+ */
+export function memoAnchorDecode(bytes: Uint8Array): object;
+/**
+ * The bech32m prefix these bindings default to. **Provisional.**
+ */
+export function memoWrapperDefaultHrp(): string;
+/**
+ * The version 1 anchor ciphertext for `(nullifier, h)`, in the **untagged**
+ * form that appears inside a serialized transaction.
+ */
+export function memoAnchorEncode(nullifier: Uint8Array, h: Uint8Array): Uint8Array;
+/**
+ * Build the ordinary **zero-value** output that carries an anchor.
+ *
+ * A typed memo-anchor constructor rather than an "arbitrary ciphertext"
+ * escape hatch: the value is zero, the token type is the attributed input's,
+ * the nonce is fresh, and the recipient key pair is generated and dropped
+ * inside, so the anchor coin is unspendable by anyone — its creator included.
+ *
+ * `tokenType` is the **tagged** hex serialization of a `ShieldedTokenType` —
+ * exactly what [`memo_anchor_token_type_of`] returns, so the documented pair
+ * composes:
+ *
+ * ```text
+ * createMemoAnchorOutput(segment, memoAnchorTokenTypeOf(coin), nullifier, h)
+ * ```
+ *
+ * Tagged, not bare: the 33-byte `midnight:shielded-token-type[v1]:` prefix is
+ * what makes a value of some *other* type — a coin commitment, an unshielded
+ * token type, a raw nonce — a loud refusal naming the expected tag rather than
+ * 32 bytes silently reinterpreted as a token type. Nothing else in the
+ * construction would catch that: the anchor would encode, the output would
+ * prove, and the carrier would simply be of the wrong type. A bare
+ * 64-hex-character `coin.type` string is therefore **rejected**; wrap it with
+ * [`memo_anchor_token_type_of`].
+ *
+ * Add the result to the offer **before** balancing and proving: the output
+ * proof binds the ciphertext, so an anchor cannot be grafted onto an
+ * already-proved transaction.
+ */
+export function createMemoAnchorOutput(segment: number | null | undefined, token_type: string, nullifier: Uint8Array, h: Uint8Array): ZswapOutput;
+/**
+ * Assemble a wrapper from its parts and return its canonical bytes.
+ *
+ * `statementTail` is the concatenation of statement rows `1..INPUT_PIS`, each
+ * 32 little-endian bytes; `companionProof` is the tagged detached proof.
+ * `locator` is optional and is **never trusted as proof** by any verifier.
+ */
+export function memoWrapperBuild(memo: Uint8Array, nullifier: Uint8Array, segment: number, statement_tail: Uint8Array, companion_proof: Uint8Array, locator?: Uint8Array | null): Uint8Array;
+/**
+ * `h = MemoHashV1(memo)`, returned as 32 little-endian bytes.
+ *
+ * Throws if the memo is empty or longer than 512 bytes — absence is
+ * represented by having no memo at all, never by a zero-length one.
+ */
+export function memoHashV1(memo: Uint8Array): Uint8Array;
+/**
+ * The `statementTail` argument [`memo_wrapper_build`] asks for: spend
+ * statement rows `1..INPUT_PIS`, each 32 little-endian bytes, concatenated.
+ *
+ * ```text
+ * const tail = memoSpendStatementTail(input, segment);
+ * const wrapper = memoWrapperBuild(memo, input.nullifier bytes, segment,
+ *                                  tail, companionProof);
+ * ```
+ *
+ * **Row 0 is deliberately absent.** Row 0 is the binding input — the reserved
+ * zero for a canonical spend, `h = MemoHashV1(memo)` for a companion — and a
+ * wrapper never carries it, because a verifier derives `h` from the memo bytes
+ * it is checking rather than reading it from the artifact under test. Carrying
+ * row 0 would create exactly the second source of truth the format exists to
+ * avoid. Everything after row 0 is independent of it, which is why this
+ * binding needs no memo and no `h`.
+ *
+ * The tail is public, and it is a **cross-check, not evidence**:
+ * [`memo_wrapper_verify`] rebuilds these rows from the settled offer's own
+ * input and refuses any wrapper that disagrees, so a wrong tail is caught
+ * there rather than trusted here.
+ *
+ * `input` may be unproven, proven, or proof-erased — the rows read only public
+ * fields, so a caller may take the tail from the input it just constructed and
+ * the bytes still match the input that later settles. `segment` must be the
+ * segment the offer settles at; a mismatch is refused by
+ * [`memo_wrapper_verify`].
+ *
+ * Throws if the input is contract-owned (no such wrapper can ever verify), or
+ * if the statement length is not the one a version 1 wrapper carries.
+ */
+export function memoSpendStatementTail(input: ZswapInput, segment: number): Uint8Array;
+/**
+ * Render canonical wrapper bytes as bech32m.
+ *
+ * Raw bytes stay canonical — this is the display and transport form. `hrp`
+ * defaults to `swapmsg`, which is a **proposal** rather than a ratified
+ * prefix, which is why it is a parameter.
+ */
+export function memoWrapperToBech32m(bytes: Uint8Array, hrp?: string | null): string;
+/**
+ * Build the proof-server `/prove` payload that asks for the **companion**
+ * proof of `memo` over `serializedPreimage`.
+ *
+ * This is `createProvingPayload` with the binding input derived from the memo
+ * bytes rather than supplied by the caller, so a JS consumer cannot ask for a
+ * companion over the wrong `h` — the one mistake that would produce a proof
+ * which verifies against nothing.
+ *
+ * **Accepting the override is not evidence that a backend honoured it.** A
+ * backend that takes the parameter and then proves the original row-0-zero
+ * preimage returns a proof that verifies at row 0 = 0 and fails at row 0 =
+ * `h`. Before trusting a backend, check the returned proof against the
+ * companion statement **and** confirm it does *not* verify at row 0 = 0.
+ */
+export function createMemoCompanionProvingPayload(serialized_preimage: Uint8Array, memo: Uint8Array, key_material: any): Uint8Array;
+/**
+ * The shielded token type of a coin as **tagged** hex, for
+ * [`create_memo_anchor_output`].
+ *
+ * A convenience so a caller does not have to reach into a coin object and
+ * re-serialize a field by hand — getting that wrong would produce an anchor
+ * carrier of the wrong token type, which nothing else would catch.
+ *
+ * The string carries the 33-byte `midnight:shielded-token-type[v1]:` tag, and
+ * [`create_memo_anchor_output`] requires that tag, so the two compose as
+ * written:
+ *
+ * ```text
+ * createMemoAnchorOutput(segment, memoAnchorTokenTypeOf(coin), nullifier, h)
+ * ```
+ *
+ * This is **not** the bare untagged encoding `createShieldedCoinInfo` takes,
+ * and it is deliberately not: the tag is what turns "some 32 bytes" into "a
+ * shielded token type", so a value of another type is refused instead of being
+ * reinterpreted.
+ */
+export function memoAnchorTokenTypeOf(coin: any): string;
 /**
  * Verify a companion wrapper against a **settled, proven** Zswap offer.
  *
@@ -58,98 +189,29 @@ export function memoAnchorScan(bytes: Uint8Array): Array<any>;
  * a proof that does not bind the memo.
  */
 export function memoWrapperVerify(wrapper: Uint8Array, offer: Uint8Array, segment: number): object;
-/**
- * Decode untagged anchor bytes to `{ nullifier, h }`.
- *
- * Throws — with the specific rule that failed — for anything that is not a
- * version 1 anchor: a wrong marker, an unknown version, a non-canonical point
- * or nullifier split, a zero `h`, a non-zero reserved field, truncation, or
- * trailing bytes.
- */
-export function memoAnchorDecode(bytes: Uint8Array): object;
-/**
- * Build the proof-server `/prove` payload that asks for the **companion**
- * proof of `memo` over `serializedPreimage`.
- *
- * This is `createProvingPayload` with the binding input derived from the memo
- * bytes rather than supplied by the caller, so a JS consumer cannot ask for a
- * companion over the wrong `h` — the one mistake that would produce a proof
- * which verifies against nothing.
- *
- * **Accepting the override is not evidence that a backend honoured it.** A
- * backend that takes the parameter and then proves the original row-0-zero
- * preimage returns a proof that verifies at row 0 = 0 and fails at row 0 =
- * `h`. Before trusting a backend, check the returned proof against the
- * companion statement **and** confirm it does *not* verify at row 0 = 0.
- */
-export function createMemoCompanionProvingPayload(serialized_preimage: Uint8Array, memo: Uint8Array, key_material: any): Uint8Array;
-/**
- * The version 1 anchor ciphertext for `(nullifier, h)`, in the **untagged**
- * form that appears inside a serialized transaction.
- */
-export function memoAnchorEncode(nullifier: Uint8Array, h: Uint8Array): Uint8Array;
-/**
- * Build the ordinary **zero-value** output that carries an anchor.
- *
- * A typed memo-anchor constructor rather than an "arbitrary ciphertext"
- * escape hatch: the value is zero, the token type is the attributed input's,
- * the nonce is fresh, and the recipient key pair is generated and dropped
- * inside, so the anchor coin is unspendable by anyone — its creator included.
- *
- * `tokenType` is the hex-serialized `ShieldedTokenType` the rest of this API
- * already uses. Add the result to the offer **before** balancing and proving:
- * the output proof binds the ciphertext, so an anchor cannot be grafted onto
- * an already-proved transaction.
- */
-export function createMemoAnchorOutput(segment: number | null | undefined, token_type: string, nullifier: Uint8Array, h: Uint8Array): ZswapOutput;
-/**
- * Parse wrapper bytes into their fields.
- *
- * **Parsing is not verifying.** The returned `memo` is the memo *as parsed*;
- * it must not be shown as authenticated until [`memo_wrapper_verify`]
- * succeeds. The key is named `unverifiedMemo` so that a caller cannot reach
- * for it by accident.
- */
-export function memoWrapperParse(bytes: Uint8Array): object;
-/**
- * `h = MemoHashV1(memo)`, returned as 32 little-endian bytes.
- *
- * Throws if the memo is empty or longer than 512 bytes — absence is
- * represented by having no memo at all, never by a zero-length one.
- */
-export function memoHashV1(memo: Uint8Array): Uint8Array;
-/**
- * Assemble a wrapper from its parts and return its canonical bytes.
- *
- * `statementTail` is the concatenation of statement rows `1..INPUT_PIS`, each
- * 32 little-endian bytes; `companionProof` is the tagged detached proof.
- * `locator` is optional and is **never trusted as proof** by any verifier.
- */
-export function memoWrapperBuild(memo: Uint8Array, nullifier: Uint8Array, segment: number, statement_tail: Uint8Array, companion_proof: Uint8Array, locator?: Uint8Array | null): Uint8Array;
-/**
- * Read a bech32m rendering back to canonical bytes, requiring the prefix.
- *
- * Accepting any prefix would let a string minted for a different artifact
- * type be read as a wrapper, so the expected prefix is always checked.
- */
-export function memoWrapperFromBech32m(text: string, hrp?: string | null): Uint8Array;
-/**
- * The shielded token type of a coin, hex-serialized, for
- * [`create_memo_anchor_output`].
- *
- * A convenience so a caller does not have to reach into a coin object and
- * re-serialize a field by hand — getting that wrong would produce an anchor
- * carrier of the wrong token type, which nothing else would catch.
- */
-export function memoAnchorTokenTypeOf(coin: any): string;
-/**
- * Render canonical wrapper bytes as bech32m.
- *
- * Raw bytes stay canonical — this is the display and transport form. `hrp`
- * defaults to `swapmsg`, which is a **proposal** rather than a ratified
- * prefix, which is why it is a parameter.
- */
-export function memoWrapperToBech32m(bytes: Uint8Array, hrp?: string | null): string;
+export function successorDustUtxo(utxo: any, now: Date, subtract_fee: bigint, new_commitment_index: bigint, gen_info: any, sk: DustSecretKey, dust_parameters: DustParameters): any;
+export function updatedValue(ctime: Date, initial_value: bigint, gen_info: any, now: Date, params: any): bigint;
+export function sampleDustSecretKey(): DustSecretKey;
+export function dustFirstNonce(backing_night: string, dust_address: bigint): bigint;
+export function createProvingPayload(serialized_preimage: Uint8Array, overwrite_binding_input: bigint | null | undefined, key_material: any): Uint8Array;
+export function dustNullifier(utxo: any, sk: DustSecretKey): bigint;
+export function createCheckPayload(serialized_preimage: Uint8Array, ir?: Uint8Array | null): Uint8Array;
+export function addressFromKey(key: any): string;
+export function coinNullifier(coin_info: any, coin_secret_key: CoinSecretKey): string;
+export function shieldedToken(): any;
+export function sampleEncryptionPublicKey(): string;
+export function unshieldedToken(): any;
+export function coinCommitment(coin: any, coin_public_key: string): string;
+export function nativeToken(): any;
+export function dustInitialNonce(output_no: bigint, intent_hash: string): string;
+export function feeToken(): any;
+export function sampleCoinPublicKey(): string;
+export function createShieldedCoinInfo(type_: string, value: any): any;
+export function createProvingTransactionPayload(tx: Transaction, proving_data: Map<any, any>): Uint8Array;
+export function dustCommitment(utxo: any): bigint;
+export function parseCheckResult(result: Uint8Array): Array<any>;
+export function sampleIntentHash(): string;
+export function dustNonce(initial_nonce: string, seq: bigint, sk: DustSecretKey): bigint;
 export function communicationCommitmentRandomness(): string;
 export function signatureVerifyingKey(sk: any): any;
 export function leafHash(value: any): any;
@@ -1094,8 +1156,6 @@ export interface InitOutput {
   readonly pretranscript_toString: (a: number, b: number) => [number, number];
   readonly __wbg_authorizedclaim_free: (a: number, b: number) => void;
   readonly __wbg_claimrewardstransaction_free: (a: number, b: number) => void;
-  readonly __wbg_coinsecretkey_free: (a: number, b: number) => void;
-  readonly __wbg_encryptionsecretkey_free: (a: number, b: number) => void;
   readonly __wbg_intent_free: (a: number, b: number) => void;
   readonly __wbg_ledgerparameters_free: (a: number, b: number) => void;
   readonly __wbg_merkletreecollapsedupdate_free: (a: number, b: number) => void;
@@ -1105,7 +1165,6 @@ export interface InitOutput {
   readonly __wbg_transactioncontext_free: (a: number, b: number) => void;
   readonly __wbg_transactioncostmodel_free: (a: number, b: number) => void;
   readonly __wbg_transactionresult_free: (a: number, b: number) => void;
-  readonly __wbg_unshieldedoffer_free: (a: number, b: number) => void;
   readonly __wbg_verifiedtransaction_free: (a: number, b: number) => void;
   readonly __wbg_wellformedstrictness_free: (a: number, b: number) => void;
   readonly __wbg_zswapchainstate_free: (a: number, b: number) => void;
@@ -1114,9 +1173,7 @@ export interface InitOutput {
   readonly __wbg_zswaplocalstatewithchanges_free: (a: number, b: number) => void;
   readonly __wbg_zswapoffer_free: (a: number, b: number) => void;
   readonly __wbg_zswapoutput_free: (a: number, b: number) => void;
-  readonly __wbg_zswapsecretkeys_free: (a: number, b: number) => void;
   readonly __wbg_zswaptransient_free: (a: number, b: number) => void;
-  readonly addressFromKey: (a: any) => [number, number, number, number];
   readonly authorizedclaim_coin: (a: number) => [number, number, number];
   readonly authorizedclaim_deserialize: (a: number, b: number, c: any) => [number, number, number];
   readonly authorizedclaim_eraseProof: (a: number) => [number, number, number];
@@ -1137,31 +1194,7 @@ export interface InitOutput {
   readonly claimrewardstransaction_signature: (a: number) => [number, number, number];
   readonly claimrewardstransaction_toString: (a: number, b: number) => [number, number];
   readonly claimrewardstransaction_value: (a: number) => any;
-  readonly coinCommitment: (a: any, b: number, c: number) => [number, number, number, number];
-  readonly coinNullifier: (a: any, b: number) => [number, number, number, number];
-  readonly coinsecretkey_clear: (a: number) => void;
-  readonly coinsecretkey_new: () => [number, number, number];
-  readonly coinsecretkey_public_key: (a: number) => [number, number, number, number];
-  readonly coinsecretkey_yesIKnowTheSecurityImplicationsOfThis_serialize: (a: number) => [number, number, number];
-  readonly createCheckPayload: (a: any, b: number) => [number, number, number];
   readonly createCoinInfo: (a: number, b: number, c: any) => [number, number, number];
-  readonly createProvingPayload: (a: any, b: number, c: any) => [number, number, number];
-  readonly createProvingTransactionPayload: (a: number, b: any) => [number, number, number];
-  readonly createShieldedCoinInfo: (a: number, b: number, c: any) => [number, number, number];
-  readonly dustCommitment: (a: any) => [number, number, number];
-  readonly dustFirstNonce: (a: number, b: number, c: any) => [number, number, number];
-  readonly dustInitialNonce: (a: bigint, b: number, c: number) => [number, number, number, number];
-  readonly dustNonce: (a: number, b: number, c: bigint, d: number) => [number, number, number];
-  readonly dustNullifier: (a: any, b: number) => [number, number, number];
-  readonly encryptionsecretkey_clear: (a: number) => void;
-  readonly encryptionsecretkey_deserialize: (a: any) => [number, number, number];
-  readonly encryptionsecretkey_new: () => [number, number, number];
-  readonly encryptionsecretkey_public_key: (a: number) => [number, number, number, number];
-  readonly encryptionsecretkey_taggedDeserialize: (a: any) => [number, number, number];
-  readonly encryptionsecretkey_test: (a: number, b: number) => [number, number, number];
-  readonly encryptionsecretkey_yesIKnowTheSecurityImplicationsOfThis_serialize: (a: number) => [number, number, number];
-  readonly encryptionsecretkey_yesIKnowTheSecurityImplicationsOfThis_taggedSerialize: (a: number) => [number, number, number];
-  readonly feeToken: () => [number, number, number];
   readonly intent_actions: (a: number) => [number, number];
   readonly intent_addCall: (a: number, b: number) => [number, number, number];
   readonly intent_addDeploy: (a: number, b: number) => [number, number, number];
@@ -1203,14 +1236,8 @@ export interface InitOutput {
   readonly merkletreecollapsedupdate_new: (a: number, b: bigint, c: bigint) => [number, number, number];
   readonly merkletreecollapsedupdate_serialize: (a: number) => [number, number, number];
   readonly merkletreecollapsedupdate_toString: (a: number, b: number) => [number, number];
-  readonly nativeToken: () => [number, number, number];
-  readonly parseCheckResult: (a: any) => [number, number, number];
   readonly prepartitioncontractcall_new: (a: number, b: number, c: any, d: number, e: number, f: number, g: number, h: any, i: any, j: number, k: number, l: number, m: number) => [number, number, number];
   readonly prepartitioncontractcall_toString: (a: number, b: number) => [number, number];
-  readonly sampleCoinPublicKey: () => [number, number, number, number];
-  readonly sampleEncryptionPublicKey: () => [number, number, number, number];
-  readonly sampleIntentHash: () => [number, number, number, number];
-  readonly shieldedToken: () => [number, number, number];
   readonly systemtransaction_deserialize: (a: any) => [number, number, number];
   readonly systemtransaction_new: () => [number, number, number];
   readonly systemtransaction_serialize: (a: number) => [number, number, number];
@@ -1261,14 +1288,6 @@ export interface InitOutput {
   readonly transactionresult_successfulSegments: (a: number) => any;
   readonly transactionresult_toString: (a: number, b: number) => [number, number];
   readonly transactionresult_type_: (a: number) => [number, number];
-  readonly unshieldedoffer_addSignatures: (a: number, b: number, c: number) => [number, number, number];
-  readonly unshieldedoffer_construct: () => [number, number, number];
-  readonly unshieldedoffer_eraseSignatures: (a: number) => [number, number, number];
-  readonly unshieldedoffer_inputs: (a: number) => [number, number, number, number];
-  readonly unshieldedoffer_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
-  readonly unshieldedoffer_outputs: (a: number) => [number, number, number, number];
-  readonly unshieldedoffer_signatures: (a: number) => [number, number];
-  readonly unshieldedoffer_toString: (a: number, b: number) => [number, number];
   readonly verifiedtransaction_transaction: (a: number) => number;
   readonly wellformedstrictness_enforce_balancing: (a: number) => number;
   readonly wellformedstrictness_enforce_limits: (a: number) => number;
@@ -1344,14 +1363,6 @@ export interface InitOutput {
   readonly zswapoutput_proof: (a: number) => [number, number, number];
   readonly zswapoutput_serialize: (a: number) => [number, number, number];
   readonly zswapoutput_toString: (a: number, b: number) => [number, number];
-  readonly zswapsecretkeys_clear: (a: number) => void;
-  readonly zswapsecretkeys_coinPublicKey: (a: number) => [number, number, number, number];
-  readonly zswapsecretkeys_coinSecretKey: (a: number) => [number, number, number];
-  readonly zswapsecretkeys_encryptionPublicKey: (a: number) => [number, number, number, number];
-  readonly zswapsecretkeys_encryptionSecretKey: (a: number) => [number, number, number];
-  readonly zswapsecretkeys_fromSeed: (a: any) => [number, number, number];
-  readonly zswapsecretkeys_fromSeedRng: (a: any) => [number, number, number];
-  readonly zswapsecretkeys_new: () => [number, number, number];
   readonly zswaptransient_commitment: (a: number) => [number, number, number, number];
   readonly zswaptransient_contractAddress: (a: number) => [number, number, number, number];
   readonly zswaptransient_deserialize: (a: number, b: number, c: any) => [number, number, number];
@@ -1362,78 +1373,52 @@ export interface InitOutput {
   readonly zswaptransient_outputProof: (a: number) => [number, number, number];
   readonly zswaptransient_serialize: (a: number) => [number, number, number];
   readonly zswaptransient_toString: (a: number, b: number) => [number, number];
-  readonly unshieldedToken: () => [number, number, number];
-  readonly __wbg_contractcall_free: (a: number, b: number) => void;
-  readonly __wbg_contractcallprototype_free: (a: number, b: number) => void;
-  readonly __wbg_contractdeploy_free: (a: number, b: number) => void;
-  readonly __wbg_contractoperationversion_free: (a: number, b: number) => void;
-  readonly __wbg_contractoperationversionedverifierkey_free: (a: number, b: number) => void;
-  readonly __wbg_duststatechanges_free: (a: number, b: number) => void;
-  readonly __wbg_irinsert_free: (a: number, b: number) => void;
-  readonly __wbg_irremove_free: (a: number, b: number) => void;
-  readonly __wbg_maintenanceupdate_free: (a: number, b: number) => void;
-  readonly __wbg_replaceauthority_free: (a: number, b: number) => void;
-  readonly __wbg_verifierkeyinsert_free: (a: number, b: number) => void;
-  readonly __wbg_verifierkeyremove_free: (a: number, b: number) => void;
-  readonly __wbg_zswapstatechanges_free: (a: number, b: number) => void;
-  readonly contractcall_address: (a: number) => [number, number, number, number];
-  readonly contractcall_communicationCommitment: (a: number) => [number, number, number];
-  readonly contractcall_entryPoint: (a: number) => [number, number, number];
-  readonly contractcall_fallibleTranscript: (a: number) => [number, number, number];
-  readonly contractcall_guaranteedTranscript: (a: number) => [number, number, number];
-  readonly contractcall_new: () => [number, number, number];
-  readonly contractcall_proof: (a: number) => [number, number, number];
-  readonly contractcall_toString: (a: number, b: number) => [number, number];
-  readonly contractcallprototype_intoCall: (a: number, b: any) => [number, number, number];
-  readonly contractcallprototype_new: (a: number, b: number, c: any, d: number, e: any, f: any, g: number, h: number, i: any, j: any, k: number, l: number, m: number, n: number) => [number, number, number];
-  readonly contractcallprototype_toString: (a: number, b: number) => [number, number];
-  readonly contractdeploy_address: (a: number) => [number, number, number, number];
-  readonly contractdeploy_initialState: (a: number) => number;
-  readonly contractdeploy_new: (a: number) => number;
-  readonly contractdeploy_toString: (a: number, b: number) => [number, number];
-  readonly contractoperationversion_new: (a: number, b: number) => [number, number, number];
-  readonly contractoperationversion_toString: (a: number, b: number) => [number, number];
-  readonly contractoperationversion_version: (a: number) => [number, number];
-  readonly contractoperationversionedverifierkey_new: (a: number, b: number, c: any) => [number, number, number];
-  readonly contractoperationversionedverifierkey_raw_vk: (a: number) => [number, number, number];
-  readonly contractoperationversionedverifierkey_toString: (a: number, b: number) => [number, number];
-  readonly contractoperationversionedverifierkey_version: (a: number) => [number, number];
-  readonly duststatechanges_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
-  readonly duststatechanges_receivedUtxos: (a: number) => [number, number, number];
-  readonly duststatechanges_source: (a: number) => [number, number, number, number];
-  readonly duststatechanges_spentUtxos: (a: number) => [number, number, number];
-  readonly duststatechanges_toString: (a: number, b: number) => [number, number];
-  readonly irinsert_ir: (a: number) => any;
-  readonly irinsert_new: (a: any, b: any) => [number, number, number];
-  readonly irinsert_operation: (a: number) => any;
-  readonly irinsert_toString: (a: number, b: number) => [number, number];
-  readonly irremove_new: (a: any) => [number, number, number];
-  readonly irremove_operation: (a: number) => any;
-  readonly irremove_toString: (a: number, b: number) => [number, number];
-  readonly maintenanceupdate_addSignature: (a: number, b: bigint, c: any) => [number, number, number];
-  readonly maintenanceupdate_address: (a: number) => [number, number, number, number];
-  readonly maintenanceupdate_counter: (a: number) => bigint;
-  readonly maintenanceupdate_data_to_sign: (a: number) => any;
-  readonly maintenanceupdate_new: (a: number, b: number, c: number, d: number, e: bigint) => [number, number, number];
-  readonly maintenanceupdate_signatures: (a: number) => [number, number, number, number];
-  readonly maintenanceupdate_toString: (a: number, b: number) => [number, number];
-  readonly maintenanceupdate_updates: (a: number) => [number, number];
-  readonly replaceauthority_authority: (a: number) => number;
-  readonly replaceauthority_new: (a: number) => number;
-  readonly replaceauthority_toString: (a: number, b: number) => [number, number];
-  readonly verifierkeyinsert_new: (a: any, b: number) => [number, number, number];
-  readonly verifierkeyinsert_operation: (a: number) => any;
-  readonly verifierkeyinsert_toString: (a: number, b: number) => [number, number];
-  readonly verifierkeyinsert_vk: (a: number) => number;
-  readonly verifierkeyremove_new: (a: any, b: number) => [number, number, number];
-  readonly verifierkeyremove_operation: (a: number) => any;
-  readonly verifierkeyremove_toString: (a: number, b: number) => [number, number];
-  readonly verifierkeyremove_version: (a: number) => number;
-  readonly zswapstatechanges_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
-  readonly zswapstatechanges_receivedCoins: (a: number) => [number, number, number];
-  readonly zswapstatechanges_source: (a: number) => [number, number, number, number];
-  readonly zswapstatechanges_spentCoins: (a: number) => [number, number, number];
-  readonly zswapstatechanges_toString: (a: number, b: number) => [number, number];
+  readonly __wbg_coinsecretkey_free: (a: number, b: number) => void;
+  readonly __wbg_encryptionsecretkey_free: (a: number, b: number) => void;
+  readonly __wbg_unshieldedoffer_free: (a: number, b: number) => void;
+  readonly __wbg_zswapsecretkeys_free: (a: number, b: number) => void;
+  readonly coinsecretkey_clear: (a: number) => void;
+  readonly coinsecretkey_new: () => [number, number, number];
+  readonly coinsecretkey_public_key: (a: number) => [number, number, number, number];
+  readonly coinsecretkey_yesIKnowTheSecurityImplicationsOfThis_serialize: (a: number) => [number, number, number];
+  readonly createMemoAnchorOutput: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
+  readonly createMemoCompanionProvingPayload: (a: any, b: any, c: any) => [number, number, number];
+  readonly encryptionsecretkey_clear: (a: number) => void;
+  readonly encryptionsecretkey_deserialize: (a: any) => [number, number, number];
+  readonly encryptionsecretkey_new: () => [number, number, number];
+  readonly encryptionsecretkey_public_key: (a: number) => [number, number, number, number];
+  readonly encryptionsecretkey_taggedDeserialize: (a: any) => [number, number, number];
+  readonly encryptionsecretkey_test: (a: number, b: number) => [number, number, number];
+  readonly encryptionsecretkey_yesIKnowTheSecurityImplicationsOfThis_serialize: (a: number) => [number, number, number];
+  readonly encryptionsecretkey_yesIKnowTheSecurityImplicationsOfThis_taggedSerialize: (a: number) => [number, number, number];
+  readonly memoAnchorDecode: (a: any) => [number, number, number];
+  readonly memoAnchorEncode: (a: any, b: any) => [number, number, number];
+  readonly memoAnchorScan: (a: any) => [number, number, number];
+  readonly memoAnchorTokenTypeOf: (a: any) => [number, number, number, number];
+  readonly memoHashV1: (a: any) => [number, number, number];
+  readonly memoSpendStatementTail: (a: number, b: number) => [number, number, number];
+  readonly memoWrapperBuild: (a: any, b: any, c: number, d: any, e: any, f: number) => [number, number, number];
+  readonly memoWrapperDefaultHrp: () => [number, number];
+  readonly memoWrapperFromBech32m: (a: number, b: number, c: number, d: number) => [number, number, number];
+  readonly memoWrapperParse: (a: any) => [number, number, number];
+  readonly memoWrapperToBech32m: (a: any, b: number, c: number) => [number, number, number, number];
+  readonly memoWrapperVerify: (a: any, b: any, c: number) => [number, number, number];
+  readonly unshieldedoffer_addSignatures: (a: number, b: number, c: number) => [number, number, number];
+  readonly unshieldedoffer_construct: () => [number, number, number];
+  readonly unshieldedoffer_eraseSignatures: (a: number) => [number, number, number];
+  readonly unshieldedoffer_inputs: (a: number) => [number, number, number, number];
+  readonly unshieldedoffer_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+  readonly unshieldedoffer_outputs: (a: number) => [number, number, number, number];
+  readonly unshieldedoffer_signatures: (a: number) => [number, number];
+  readonly unshieldedoffer_toString: (a: number, b: number) => [number, number];
+  readonly zswapsecretkeys_clear: (a: number) => void;
+  readonly zswapsecretkeys_coinPublicKey: (a: number) => [number, number, number, number];
+  readonly zswapsecretkeys_coinSecretKey: (a: number) => [number, number, number];
+  readonly zswapsecretkeys_encryptionPublicKey: (a: number) => [number, number, number, number];
+  readonly zswapsecretkeys_encryptionSecretKey: (a: number) => [number, number, number];
+  readonly zswapsecretkeys_fromSeed: (a: any) => [number, number, number];
+  readonly zswapsecretkeys_fromSeedRng: (a: any) => [number, number, number];
+  readonly zswapsecretkeys_new: () => [number, number, number];
   readonly __wbg_binding_free: (a: number, b: number) => void;
   readonly __wbg_dustactions_free: (a: number, b: number) => void;
   readonly __wbg_dustgenerationstate_free: (a: number, b: number) => void;
@@ -1600,19 +1585,97 @@ export interface InitOutput {
   readonly utxometa_new: (a: any) => number;
   readonly utxometa_set_ctime: (a: number, b: any) => [number, number];
   readonly signatureerased_new: () => [number, number, number];
-  readonly createMemoAnchorOutput: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
-  readonly createMemoCompanionProvingPayload: (a: any, b: any, c: any) => [number, number, number];
-  readonly memoAnchorDecode: (a: any) => [number, number, number];
-  readonly memoAnchorEncode: (a: any, b: any) => [number, number, number];
-  readonly memoAnchorScan: (a: any) => [number, number, number];
-  readonly memoAnchorTokenTypeOf: (a: any) => [number, number, number, number];
-  readonly memoHashV1: (a: any) => [number, number, number];
-  readonly memoWrapperBuild: (a: any, b: any, c: number, d: any, e: any, f: number) => [number, number, number];
-  readonly memoWrapperDefaultHrp: () => [number, number];
-  readonly memoWrapperFromBech32m: (a: number, b: number, c: number, d: number) => [number, number, number];
-  readonly memoWrapperParse: (a: any) => [number, number, number];
-  readonly memoWrapperToBech32m: (a: any, b: number, c: number) => [number, number, number, number];
-  readonly memoWrapperVerify: (a: any, b: any, c: number) => [number, number, number];
+  readonly __wbg_contractcall_free: (a: number, b: number) => void;
+  readonly __wbg_contractcallprototype_free: (a: number, b: number) => void;
+  readonly __wbg_contractdeploy_free: (a: number, b: number) => void;
+  readonly __wbg_contractoperationversion_free: (a: number, b: number) => void;
+  readonly __wbg_contractoperationversionedverifierkey_free: (a: number, b: number) => void;
+  readonly __wbg_duststatechanges_free: (a: number, b: number) => void;
+  readonly __wbg_irinsert_free: (a: number, b: number) => void;
+  readonly __wbg_irremove_free: (a: number, b: number) => void;
+  readonly __wbg_maintenanceupdate_free: (a: number, b: number) => void;
+  readonly __wbg_replaceauthority_free: (a: number, b: number) => void;
+  readonly __wbg_verifierkeyinsert_free: (a: number, b: number) => void;
+  readonly __wbg_verifierkeyremove_free: (a: number, b: number) => void;
+  readonly __wbg_zswapstatechanges_free: (a: number, b: number) => void;
+  readonly addressFromKey: (a: any) => [number, number, number, number];
+  readonly coinCommitment: (a: any, b: number, c: number) => [number, number, number, number];
+  readonly coinNullifier: (a: any, b: number) => [number, number, number, number];
+  readonly contractcall_address: (a: number) => [number, number, number, number];
+  readonly contractcall_communicationCommitment: (a: number) => [number, number, number];
+  readonly contractcall_entryPoint: (a: number) => [number, number, number];
+  readonly contractcall_fallibleTranscript: (a: number) => [number, number, number];
+  readonly contractcall_guaranteedTranscript: (a: number) => [number, number, number];
+  readonly contractcall_new: () => [number, number, number];
+  readonly contractcall_proof: (a: number) => [number, number, number];
+  readonly contractcall_toString: (a: number, b: number) => [number, number];
+  readonly contractcallprototype_intoCall: (a: number, b: any) => [number, number, number];
+  readonly contractcallprototype_new: (a: number, b: number, c: any, d: number, e: any, f: any, g: number, h: number, i: any, j: any, k: number, l: number, m: number, n: number) => [number, number, number];
+  readonly contractcallprototype_toString: (a: number, b: number) => [number, number];
+  readonly contractdeploy_address: (a: number) => [number, number, number, number];
+  readonly contractdeploy_initialState: (a: number) => number;
+  readonly contractdeploy_new: (a: number) => number;
+  readonly contractdeploy_toString: (a: number, b: number) => [number, number];
+  readonly contractoperationversion_new: (a: number, b: number) => [number, number, number];
+  readonly contractoperationversion_toString: (a: number, b: number) => [number, number];
+  readonly contractoperationversion_version: (a: number) => [number, number];
+  readonly contractoperationversionedverifierkey_new: (a: number, b: number, c: any) => [number, number, number];
+  readonly contractoperationversionedverifierkey_raw_vk: (a: number) => [number, number, number];
+  readonly contractoperationversionedverifierkey_toString: (a: number, b: number) => [number, number];
+  readonly contractoperationversionedverifierkey_version: (a: number) => [number, number];
+  readonly createCheckPayload: (a: any, b: number) => [number, number, number];
+  readonly createProvingPayload: (a: any, b: number, c: any) => [number, number, number];
+  readonly createProvingTransactionPayload: (a: number, b: any) => [number, number, number];
+  readonly createShieldedCoinInfo: (a: number, b: number, c: any) => [number, number, number];
+  readonly dustCommitment: (a: any) => [number, number, number];
+  readonly dustFirstNonce: (a: number, b: number, c: any) => [number, number, number];
+  readonly dustInitialNonce: (a: bigint, b: number, c: number) => [number, number, number, number];
+  readonly dustNonce: (a: number, b: number, c: bigint, d: number) => [number, number, number];
+  readonly dustNullifier: (a: any, b: number) => [number, number, number];
+  readonly duststatechanges_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+  readonly duststatechanges_receivedUtxos: (a: number) => [number, number, number];
+  readonly duststatechanges_source: (a: number) => [number, number, number, number];
+  readonly duststatechanges_spentUtxos: (a: number) => [number, number, number];
+  readonly duststatechanges_toString: (a: number, b: number) => [number, number];
+  readonly feeToken: () => [number, number, number];
+  readonly irinsert_ir: (a: number) => any;
+  readonly irinsert_new: (a: any, b: any) => [number, number, number];
+  readonly irinsert_operation: (a: number) => any;
+  readonly irinsert_toString: (a: number, b: number) => [number, number];
+  readonly irremove_new: (a: any) => [number, number, number];
+  readonly irremove_operation: (a: number) => any;
+  readonly irremove_toString: (a: number, b: number) => [number, number];
+  readonly maintenanceupdate_addSignature: (a: number, b: bigint, c: any) => [number, number, number];
+  readonly maintenanceupdate_address: (a: number) => [number, number, number, number];
+  readonly maintenanceupdate_counter: (a: number) => bigint;
+  readonly maintenanceupdate_data_to_sign: (a: number) => any;
+  readonly maintenanceupdate_new: (a: number, b: number, c: number, d: number, e: bigint) => [number, number, number];
+  readonly maintenanceupdate_signatures: (a: number) => [number, number, number, number];
+  readonly maintenanceupdate_toString: (a: number, b: number) => [number, number];
+  readonly maintenanceupdate_updates: (a: number) => [number, number];
+  readonly nativeToken: () => [number, number, number];
+  readonly parseCheckResult: (a: any) => [number, number, number];
+  readonly replaceauthority_authority: (a: number) => number;
+  readonly replaceauthority_new: (a: number) => number;
+  readonly replaceauthority_toString: (a: number, b: number) => [number, number];
+  readonly sampleCoinPublicKey: () => [number, number, number, number];
+  readonly sampleEncryptionPublicKey: () => [number, number, number, number];
+  readonly sampleIntentHash: () => [number, number, number, number];
+  readonly shieldedToken: () => [number, number, number];
+  readonly verifierkeyinsert_new: (a: any, b: number) => [number, number, number];
+  readonly verifierkeyinsert_operation: (a: number) => any;
+  readonly verifierkeyinsert_toString: (a: number, b: number) => [number, number];
+  readonly verifierkeyinsert_vk: (a: number) => number;
+  readonly verifierkeyremove_new: (a: any, b: number) => [number, number, number];
+  readonly verifierkeyremove_operation: (a: number) => any;
+  readonly verifierkeyremove_toString: (a: number, b: number) => [number, number];
+  readonly verifierkeyremove_version: (a: number) => number;
+  readonly zswapstatechanges_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+  readonly zswapstatechanges_receivedCoins: (a: number) => [number, number, number];
+  readonly zswapstatechanges_source: (a: number) => [number, number, number, number];
+  readonly zswapstatechanges_spentCoins: (a: number) => [number, number, number];
+  readonly zswapstatechanges_toString: (a: number, b: number) => [number, number];
+  readonly unshieldedToken: () => [number, number, number];
   readonly __wbg_event_free: (a: number, b: number) => void;
   readonly __wbg_ledgerstate_free: (a: number, b: number) => void;
   readonly __wbg_utxostate_free: (a: number, b: number) => void;
@@ -1831,9 +1894,9 @@ export interface InitOutput {
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_export_7: WebAssembly.Table;
   readonly __externref_table_dealloc: (a: number) => void;
-  readonly closure4166_externref_shim: (a: number, b: number, c: any) => void;
-  readonly closure4230_externref_shim: (a: number, b: number, c: any, d: any) => void;
-  readonly closure4228_externref_shim: (a: number, b: number, c: any, d: any, e: any) => void;
+  readonly closure4171_externref_shim: (a: number, b: number, c: any) => void;
+  readonly closure4235_externref_shim: (a: number, b: number, c: any, d: any) => void;
+  readonly closure4233_externref_shim: (a: number, b: number, c: any, d: any, e: any) => void;
   readonly __wbindgen_start: () => void;
 }
 
