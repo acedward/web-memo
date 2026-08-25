@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>web-memo — authenticated Zswap memos (experimental demo)</title>
+
+<!-- Inline so the page costs exactly zero extra requests, which also keeps the
+     "no network traffic during verification" story clean and testable. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230d1117'/%3E%3Cpath d='M3 5h10M3 8h10M3 11h6' stroke='%2358a6ff' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E">
+
+<!--
+  ===================================================================
+  THE `#self` FIX. Do not remove, and keep it before any module load.
+  ===================================================================
+
+  The vendored `ledger-wasm` bundle is built by `wasm-pack --target web`,
+  which emits 26 `snippets/**/inlineN.js` files of the form
+
+      import * as wasm from '#self';
+      export function X_() { return wasm.X; }
+
+  `#self` is a Node "subpath import". Browsers do not implement subpath
+  imports and never read package.json, so patching the package's
+  package.json (what a bundler would need) is inert here. What a browser
+  DOES do is treat `#self` as a bare specifier — because it starts with
+  neither "/", "./" nor "../" and is not an absolute URL — and bare
+  specifiers are exactly what an import map remaps.
+
+  Without this map the module graph dies on the first snippet with:
+
+      TypeError: Failed to resolve module specifier "#self".
+                 Relative references must start with either "/", "./", or "../".
+
+  The target below MUST be the same URL `src/wasm.js` dynamically imports,
+  so both resolve to one module record.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "#self": "/pkg/midnight_ledger_wasm_v9.js"
+  }
+}
+</script>
+
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117; color: #c9d1d9;
+    padding: 32px 20px 80px; max-width: 900px; margin: 0 auto;
+    line-height: 1.55;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 15px; margin: 28px 0 10px; color: #e6edf3; }
+  p { margin-bottom: 10px; }
+  a { color: #58a6ff; }
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+  .banner {
+    border: 1px solid #9e6a03; background: #2b2005; color: #e3b341;
+    border-radius: 6px; padding: 12px 14px; margin: 16px 0 24px; font-size: 13px;
+  }
+  .banner strong { color: #f0c674; }
+  .card {
+    border: 1px solid #30363d; background: #161b22;
+    border-radius: 6px; padding: 14px 16px; margin-bottom: 14px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; vertical-align: top; }
+  th { color: #8b949e; font-weight: 500; }
+  .ok   { color: #3fb950; }
+  .fail { color: #f85149; }
+  .muted { color: #8b949e; font-size: 12px; }
+  .break { word-break: break-all; }
+</style>
+</head>
+<body>
+
+<h1>web-memo</h1>
+<p class="muted">Authenticated memos on Zswap offers — experimental demo.</p>
+
+<div class="banner">
+  <strong>Experimental demo. Not an official Midnight product.</strong><br>
+  This page demonstrates an unratified message format built on a fork of the
+  Midnight ledger. <strong>Never enter a seed that controls real funds.</strong>
+  Nothing here is submitted to any network.
+</div>
+
+<h2>Phase 1 stub — vendored WASM self-check</h2>
+<p class="muted">
+  This build is scaffolding: it proves the vendored <code>ledger-wasm</code>
+  bundle loads in this browser and answers a known-answer <code>MemoHashV1</code>
+  call. The Create and Read sections land in later phases.
+</p>
+
+<div class="card" id="status">
+  <span class="muted">Loading the WASM module…</span>
+</div>
+
+<div class="card" id="results" hidden></div>
+
+<p class="muted">
+  Source, provenance and caveats:
+  <a href="https://github.com/acedward/web-memo">github.com/acedward/web-memo</a>
+</p>
+
+</body>
+</html>

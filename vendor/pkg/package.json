@@ -1,0 +1,16 @@
+{
+  "name": "midnight-ledger-wasm-v9",
+  "type": "module",
+  "version": "1.0.0-rc.3",
+  "license": "Apache-2.0",
+  "files": [
+    "midnight_ledger_wasm_v9_bg.wasm",
+    "midnight_ledger_wasm_v9.js",
+    "midnight_ledger_wasm_v9.d.ts"
+  ],
+  "main": "midnight_ledger_wasm_v9.js",
+  "types": "midnight_ledger_wasm_v9.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

@@ -1,0 +1,1 @@
+import * as wasm from '#self'; export function IrInsert_() { return wasm.IrInsert; }

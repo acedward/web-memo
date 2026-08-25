@@ -1,0 +1,11 @@
+{
+  // Cloudflare Pages config — the single source of truth for `wrangler pages`
+  // commands. The account is resolved from the logged-in Wrangler session
+  // (`wrangler login`), so no account ID or API token is committed here.
+  //
+  // Deploy with:  npm run pages:deploy
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "web-memo",
+  "pages_build_output_dir": "dist",
+  "compatibility_date": "2026-04-01"
+}

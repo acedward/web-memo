@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# The vendored WASM bundle is a build artifact. Treat the binary as binary and
+# keep the generated JS/TS glue byte-exact so its SHA-256 in
+# vendor/pkg/SHA256SUMS stays verifiable on every platform.
+vendor/pkg/**            -text
+vendor/pkg/*.wasm        binary
