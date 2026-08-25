@@ -71,6 +71,25 @@ say "out          : $OUT"
 say ""
 
 # --- the pins, on the host, BEFORE anything --------------------------------
+#
+# What "clean" has to mean here, precisely.
+#
+# The upstream workspace beside this repository is a LIVE working tree that
+# other work uses too. Demanding it be pristine down to the last untracked
+# scratch file would make this gate fail for reasons that cannot possibly change
+# its verdict — and a gate that cries wolf gets ignored.
+#
+# So the two trees are treated differently, for a reason:
+#
+#   * the PRISTINE LEDGER CLONE is the tree whose bytes define "unmodified".
+#     It must be detached at the baseline with NOTHING in it that is not in the
+#     commit — tracked or untracked. Anything else and the gate is not testing
+#     what it says it is testing.
+#   * the TOOLKIT must have no MODIFICATIONS to tracked files, because a changed
+#     source really would change the verdict. Untracked files are listed by
+#     name and do not fail the run: `cargo build` of this crate compiles the
+#     toolkit's library, never its `tests/`, and an untracked module cannot be
+#     reached without editing a tracked file to declare it.
 LEDGER_BASELINE=4823b5351b17cc49e30f19760dbd30a73cf95e22
 assert_pins() { # $1 = "BEFORE" | "AFTER"
     local when="$1" bad=0
@@ -78,16 +97,21 @@ assert_pins() { # $1 = "BEFORE" | "AFTER"
         say "$when: MISSING $WORKSPACE_00003/midnight-ledger-fork"
         return 1
     fi
-    local head dirty
+    local head modified untracked
     head="$(git -C "$WORKSPACE_00003/midnight-ledger-fork" rev-parse HEAD)"
-    dirty="$(git -C "$WORKSPACE_00003/midnight-ledger-fork" status --porcelain | wc -l | tr -d ' ')"
-    say "$when: pristine ledger clone $head, dirty_files=$dirty"
+    modified="$(git -C "$WORKSPACE_00003/midnight-ledger-fork" status --porcelain | wc -l | tr -d ' ')"
+    say "$when: pristine ledger clone $head, anything-not-in-the-commit=$modified"
     [ "$head" = "$LEDGER_BASELINE" ] || { say "$when: NOT the pinned baseline $LEDGER_BASELINE"; bad=1; }
-    [ "$dirty" = "0" ] || bad=1
+    [ "$modified" = "0" ] || bad=1
+
     head="$(git -C "$WORKSPACE_00003/zswap-memo-companion" rev-parse HEAD)"
-    dirty="$(git -C "$WORKSPACE_00003/zswap-memo-companion" status --porcelain | wc -l | tr -d ' ')"
-    say "$when: 00003 toolkit        $head, dirty_files=$dirty"
-    [ "$dirty" = "0" ] || bad=1
+    modified="$(git -C "$WORKSPACE_00003/zswap-memo-companion" status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+    untracked="$(git -C "$WORKSPACE_00003/zswap-memo-companion" ls-files --others --exclude-standard | tr '\n' ' ')"
+    say "$when: 00003 toolkit        $head, modified_tracked_files=$modified"
+    [ "$modified" = "0" ] || bad=1
+    if [ -n "$untracked" ]; then
+        say "$when: 00003 toolkit        untracked files present (reported, not fatal): $untracked"
+    fi
     return "$bad"
 }
 

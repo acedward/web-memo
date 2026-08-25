@@ -43,14 +43,23 @@ COPY --from=gate . /src/experiments/00005-web-memo/web-memo/acceptance
 
 # The pins, asserted. If the pristine clone is not the pinned baseline, this
 # gate is not testing "the unmodified ledger" and must not run.
+#
+# The two trees are held to different standards on purpose — see the long note
+# in run-gate.sh. The pristine ledger clone must contain nothing that is not in
+# the commit; the toolkit must have no MODIFIED TRACKED files, and its untracked
+# files are recorded in /PINS.txt rather than failing the build. `cargo build`
+# of this crate compiles the toolkit's library, never its `tests/`, and an
+# untracked module cannot be reached without editing a tracked file to declare
+# it — so listing them is the honest treatment, and hiding them would not be.
 RUN git config --global --add safe.directory '*' \
  && cd /src/experiments/00003-spend-proof-memo-binding \
  && test "$(git -C midnight-ledger-fork rev-parse HEAD)" = "$LEDGER_BASELINE" \
  && test -z "$(git -C midnight-ledger-fork status --porcelain)" \
  && test -z "$(git -C midnight-ledger-fork symbolic-ref -q HEAD || true)" \
- && test -z "$(git -C zswap-memo-companion status --porcelain)" \
- && { echo "ledger-baseline: $(git -C midnight-ledger-fork rev-parse HEAD) (detached, clean)"; \
-      echo "00003-toolkit:   $(git -C zswap-memo-companion rev-parse HEAD) (clean)"; \
+ && test -z "$(git -C zswap-memo-companion status --porcelain --untracked-files=no)" \
+ && { echo "ledger-baseline: $(git -C midnight-ledger-fork rev-parse HEAD) (detached, nothing outside the commit)"; \
+      echo "00003-toolkit:   $(git -C zswap-memo-companion rev-parse HEAD) (no modified tracked files)"; \
+      echo "00003-toolkit untracked files present at build time: $(git -C zswap-memo-companion ls-files --others --exclude-standard | tr '\n' ' ')"; \
       echo "rustc:           $(rustc --version)"; \
     } | tee /PINS.txt
 

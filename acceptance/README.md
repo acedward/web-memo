@@ -103,8 +103,18 @@ it.
 
 Both trees are treated as **read-only**: the container copies them in, the cargo
 target directory lives outside them, and `run-gate.sh` asserts their commits and
-clean state **before and after** every run — so "read-only" is a result rather
-than a promise.
+state **before and after** every run — so "read-only" is a result rather than a
+promise.
+
+The two trees are held to different standards, deliberately. The **pristine
+ledger clone** defines what "unmodified" means, so it must be detached at the
+baseline with nothing in it that is not in the commit — tracked or untracked.
+The **toolkit** is a live working tree that other work shares, so it must have
+no *modified tracked files* (a changed source really would change the verdict),
+while untracked files are **listed by name and do not fail the run**: this crate
+compiles the toolkit's library, never its `tests/`, and an untracked module
+cannot be reached without editing a tracked file to declare it. A gate that
+failed on somebody else's scratch file would be a gate people learn to ignore.
 
 ## House rules the runner keeps
 
