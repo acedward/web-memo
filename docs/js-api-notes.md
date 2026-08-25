@@ -11,6 +11,16 @@ every parameter and return is `string`, `object`, `any` or `Array<any>`, so
 TypeScript will cheerfully accept calls that throw at runtime. Two of the traps
 below are compositions the type checker positively endorses.
 
+> ### These notes are pinned to `da1d2f04`, and two of them are scheduled to change
+>
+> Upstream has accepted fixes for **§1** (`memoAnchorTokenTypeOf` will compose,
+> by making `createMemoAnchorOutput` read the *tagged* form) and **§8** (an
+> additive binding will expose the spend statement tail, unblocking wrapper
+> construction from the browser). When this repository re-pins and re-vendors
+> `vendor/pkg/`, **re-verify §1 and §8 before trusting them** — §1's workaround
+> becomes wrong, not merely unnecessary, once `createMemoAnchorOutput` expects
+> tagged input. Everything else here is independent of those two changes.
+
 ## The 13 memo bindings
 
 ```ts
@@ -56,6 +66,12 @@ createMemoAnchorOutput(seg, coin.type, nullifier, h);   // OK
 
 `memoAnchorTokenTypeOf` has no other caller, so nothing else is affected. This
 is an upstream defect on the pinned fork branch, not something to fix here.
+
+**Scheduled to change.** Upstream is fixing this by making
+`createMemoAnchorOutput` parse the **tagged** form, so the documented pair will
+compose — and the `coin.type` workaround above will then be the *wrong* call.
+After the next re-pin, pass `memoAnchorTokenTypeOf(coin)`, and delete the
+workaround rather than leaving both in place.
 
 ## 2. `shieldedToken()` does not produce what `createShieldedCoinInfo` wants
 
@@ -142,11 +158,15 @@ locator?)` takes the statement rows `1..INPUT_PIS` (32 little-endian bytes each)
 exposes them, and the Rust producer (`zswap::verify::spend_statement`) is not
 bound to WASM — zero exports match `/statement|tail/i`.
 
-**Consequence:** the verification half is fully served, but the browser cannot
-assemble a memo wrapper around a companion proof it receives back from a proof
-server. That needs an additive upstream binding; reimplementing the derivation
-in JavaScript would create a second, unverified copy of a byte mapping and is
-the wrong answer.
+**Consequence:** at this pin the verification half is fully served, but the
+browser cannot assemble a memo wrapper around a companion proof it receives back
+from a proof server. Reimplementing the derivation in JavaScript would create a
+second, unverified copy of a byte mapping and is the wrong answer.
+
+**Scheduled to change.** An additive upstream binding exposing the spend
+statement will land on the fork branch. Until this repository re-pins and
+re-vendors, wrapper *construction* is out of reach from the browser; wrapper
+*parsing and verification* are not affected and work today.
 
 ## 9. Error messages that mislead
 

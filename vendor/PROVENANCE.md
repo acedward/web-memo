@@ -20,6 +20,13 @@ for the one file that is *omitted* (and why), which is the only difference.
 | Upstream baseline of that branch | `4823b5351b17cc49e30f19760dbd30a73cf95e22` — tag `ledger-9.1.0.0-rc.3`, published as `@midnightntwrk/ledger-v9@1.0.0-rc.3` |
 | Crate | `ledger-wasm` (package `midnight-ledger-wasm-v9` `1.0.0-rc.3`) |
 
+**This pin is expected to move.** Two accepted upstream changes are inbound on
+the same branch (making the memo-anchor token-type helpers compose, and adding a
+binding that exposes the spend statement tail). When they land, re-run the build
+command below at the new commit, re-vendor, regenerate `SHA256SUMS`, and update
+the commit and sums in this file — the branch is append-only, so the pin above
+stays reproducible either way.
+
 The branch is exactly five commits on top of the upstream baseline:
 
 ```
