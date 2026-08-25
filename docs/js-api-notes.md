@@ -219,8 +219,9 @@ browser:
 
 `Transaction.deserialize(signatureMarker, proofMarker, bindingMarker, raw)`
 expects the caller to know three markers. Do not brute-force them — a failed
-attempt on a multi-megabyte input is not free. Each valid combination has a
-distinct ASCII header tag that is literally the start of the bytes:
+attempt on a multi-megabyte input is not free. Of the 18 combinations
+(2 signature x 3 proof x 3 binding), **10 are valid**, and each has a distinct
+ASCII header tag that is literally the start of the bytes:
 
 | signature | proof | binding | header tag |
 | --- | --- | --- | --- |
@@ -231,7 +232,7 @@ distinct ASCII header tag that is literally the start of the bytes:
 | `signature` | `no-proof` | `no-binding` | `midnight:transaction[v12](signature[v2],(),pedersen[v1]):` |
 | `signature-erased` | … | … | the same five with `()` in place of `signature[v2]` |
 
-The other five combinations are refused up front with `Unsupported transaction
+The other eight combinations are refused up front with `Unsupported transaction
 type provided.` Note that **binding is part of the serialization, not a view**:
 you cannot re-read bound bytes as `pre-binding`.
 
