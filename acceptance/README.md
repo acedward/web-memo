@@ -106,15 +106,33 @@ target directory lives outside them, and `run-gate.sh` asserts their commits and
 state **before and after** every run — so "read-only" is a result rather than a
 promise.
 
-The two trees are held to different standards, deliberately. The **pristine
-ledger clone** defines what "unmodified" means, so it must be detached at the
-baseline with nothing in it that is not in the commit — tracked or untracked.
-The **toolkit** is a live working tree that other work shares, so it must have
-no *modified tracked files* (a changed source really would change the verdict),
-while untracked files are **listed by name and do not fail the run**: this crate
-compiles the toolkit's library, never its `tests/`, and an untracked module
-cannot be reached without editing a tracked file to declare it. A gate that
-failed on somebody else's scratch file would be a gate people learn to ignore.
+The two trees are held to different standards, deliberately.
+
+The **pristine ledger clone** defines what "unmodified" means, so it must be
+detached at the baseline with nothing in it that is not in the commit — tracked
+or untracked.
+
+The **toolkit** is a live working tree that other work shares, so pinning its
+HEAD would be wrong in both directions: too brittle to be useful, and too weak
+to be safe. It is checked the way the proof-server image checks
+`proof-server/` — not *"is it at commit X"* but ***"is the part this gate
+depends on byte-identical to the pin"***:
+
+```
+git diff <pin> HEAD -- src/ vectors/ Cargo.toml Cargo.lock     # must be EMPTY
+```
+
+Its HEAD may move and another project may add tests or docs on top; the
+reference implementation and the frozen vectors this gate's verdict is *about*
+may not change underneath it. Modified tracked files fail outright. Untracked
+files are **listed by name and do not fail the run**: this crate compiles the
+toolkit's library, never its `tests/`, and an untracked module cannot be reached
+without editing a tracked file to declare it — and a gate that failed on
+somebody else's scratch file is a gate people learn to ignore.
+
+That last check exists because the hole it closes was found the hard way. A
+neighbouring project committed to that tree in the middle of a run. Nothing this
+gate reads had changed — but nothing would have said so if it had.
 
 ## House rules the runner keeps
 

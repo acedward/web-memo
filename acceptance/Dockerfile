@@ -29,6 +29,7 @@
 FROM rust:1.95-bookworm
 
 ARG LEDGER_BASELINE=4823b5351b17cc49e30f19760dbd30a73cf95e22
+ARG TOOLKIT_PIN=5dd870f827cd6794fcfba60076d9b3f9c914659c
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         clang cmake pkg-config libssl-dev git ca-certificates \
@@ -46,19 +47,24 @@ COPY --from=gate . /src/experiments/00005-web-memo/web-memo/acceptance
 #
 # The two trees are held to different standards on purpose — see the long note
 # in run-gate.sh. The pristine ledger clone must contain nothing that is not in
-# the commit; the toolkit must have no MODIFIED TRACKED files, and its untracked
-# files are recorded in /PINS.txt rather than failing the build. `cargo build`
-# of this crate compiles the toolkit's library, never its `tests/`, and an
-# untracked module cannot be reached without editing a tracked file to declare
-# it — so listing them is the honest treatment, and hiding them would not be.
+# the commit. The toolkit's HEAD is allowed to move, because another project
+# owns that tree, but the part this gate depends on — `src/`, `vectors/` and the
+# manifests — must be BYTE-IDENTICAL to the pin, which is the same shape of
+# assertion the proof-server image makes about `proof-server/`. Modified tracked
+# files fail the build; untracked files are recorded in /PINS.txt instead,
+# because `cargo build` of this crate compiles the toolkit's library and never
+# its `tests/`, and an untracked module cannot be reached without editing a
+# tracked file to declare it.
 RUN git config --global --add safe.directory '*' \
  && cd /src/experiments/00003-spend-proof-memo-binding \
  && test "$(git -C midnight-ledger-fork rev-parse HEAD)" = "$LEDGER_BASELINE" \
  && test -z "$(git -C midnight-ledger-fork status --porcelain)" \
  && test -z "$(git -C midnight-ledger-fork symbolic-ref -q HEAD || true)" \
  && test -z "$(git -C zswap-memo-companion status --porcelain --untracked-files=no)" \
+ && test -z "$(git -C zswap-memo-companion diff --name-only "$TOOLKIT_PIN" HEAD -- src vectors Cargo.toml Cargo.lock)" \
  && { echo "ledger-baseline: $(git -C midnight-ledger-fork rev-parse HEAD) (detached, nothing outside the commit)"; \
-      echo "00003-toolkit:   $(git -C zswap-memo-companion rev-parse HEAD) (no modified tracked files)"; \
+      echo "00003-toolkit-head: $(git -C zswap-memo-companion rev-parse HEAD) (no modified tracked files)"; \
+      echo "00003-toolkit-pin:  $TOOLKIT_PIN — src/ vectors/ Cargo.{toml,lock} asserted BYTE-IDENTICAL to it"; \
       echo "00003-toolkit untracked files present at build time: $(git -C zswap-memo-companion ls-files --others --exclude-standard | tr '\n' ' ')"; \
       echo "rustc:           $(rustc --version)"; \
     } | tee /PINS.txt

@@ -85,19 +85,32 @@ say ""
 #     It must be detached at the baseline with NOTHING in it that is not in the
 #     commit — tracked or untracked. Anything else and the gate is not testing
 #     what it says it is testing.
-#   * the TOOLKIT must have no MODIFICATIONS to tracked files, because a changed
-#     source really would change the verdict. Untracked files are listed by
-#     name and do not fail the run: `cargo build` of this crate compiles the
-#     toolkit's library, never its `tests/`, and an untracked module cannot be
-#     reached without editing a tracked file to declare it.
+#   * the TOOLKIT is checked the way the proof-server image checks
+#     `proof-server/`: not "is it at commit X" but **"is the part this gate
+#     depends on byte-identical to the pin"**. That is
+#     `git diff PIN HEAD -- src/ vectors/ Cargo.toml Cargo.lock`, and it must be
+#     EMPTY. Its HEAD is allowed to move — another project owns that tree and
+#     may add tests or docs on top — but the reference implementation and the
+#     frozen vectors this gate's verdict is about may not change underneath it.
+#     Modified tracked files fail outright; untracked files are listed by name
+#     and do not, because `cargo build` of this crate compiles the toolkit's
+#     library and never its `tests/`, and an untracked module cannot be reached
+#     without editing a tracked file to declare it.
+#
+# This last check exists because the hole it closes was found the hard way: a
+# neighbouring project committed to that tree mid-run. Nothing this gate reads
+# changed, but nothing would have told us if it had.
 LEDGER_BASELINE=4823b5351b17cc49e30f19760dbd30a73cf95e22
+TOOLKIT_PIN="${WEBMEMO_TOOLKIT_PIN:-5dd870f827cd6794fcfba60076d9b3f9c914659c}"
+TOOLKIT_LOAD_BEARING=(src vectors Cargo.toml Cargo.lock)
+
 assert_pins() { # $1 = "BEFORE" | "AFTER"
     local when="$1" bad=0
     if [ ! -d "$WORKSPACE_00003/midnight-ledger-fork" ]; then
         say "$when: MISSING $WORKSPACE_00003/midnight-ledger-fork"
         return 1
     fi
-    local head modified untracked
+    local head modified untracked drift
     head="$(git -C "$WORKSPACE_00003/midnight-ledger-fork" rev-parse HEAD)"
     modified="$(git -C "$WORKSPACE_00003/midnight-ledger-fork" status --porcelain | wc -l | tr -d ' ')"
     say "$when: pristine ledger clone $head, anything-not-in-the-commit=$modified"
@@ -109,6 +122,17 @@ assert_pins() { # $1 = "BEFORE" | "AFTER"
     untracked="$(git -C "$WORKSPACE_00003/zswap-memo-companion" ls-files --others --exclude-standard | tr '\n' ' ')"
     say "$when: 00003 toolkit        $head, modified_tracked_files=$modified"
     [ "$modified" = "0" ] || bad=1
+
+    # The one that matters: the reference implementation and the frozen vectors
+    # must be byte-identical to the pin, whatever the HEAD says.
+    drift="$(git -C "$WORKSPACE_00003/zswap-memo-companion" diff --name-only \
+                 "$TOOLKIT_PIN" HEAD -- "${TOOLKIT_LOAD_BEARING[@]}" 2>&1 | tr '\n' ' ')"
+    if [ -z "$drift" ]; then
+        say "$when: 00003 toolkit        src/ vectors/ Cargo.{toml,lock} BYTE-IDENTICAL to the pin $TOOLKIT_PIN"
+    else
+        say "$when: 00003 toolkit        DRIFTED from the pin $TOOLKIT_PIN in: $drift"
+        bad=1
+    fi
     if [ -n "$untracked" ]; then
         say "$when: 00003 toolkit        untracked files present (reported, not fatal): $untracked"
     fi
