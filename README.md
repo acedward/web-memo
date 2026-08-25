@@ -71,9 +71,9 @@ configure, and the default is your own machine.
    That is [`docker/`](docker/README.md): an image that **refuses to build**
    unless its checkout is the exact ledger commit this page's WASM bundle was
    built from *and* its `proof-server/` source is byte-identical to the upstream
-   pinned baseline. The first build compiles from source and takes a while;
-   later starts are instant. Nothing else is needed — no CORS proxy, no
-   sidecar.
+   pinned baseline. The first build compiles from source — a couple of minutes
+   on a fast machine, longer on a laptop — and later starts are instant.
+   Nothing else is needed: no CORS proxy, no sidecar.
 2. Put its URL in the Create section: **`http://localhost:6300`** — the proof
    server's own default port, and the page's built-in default, so if you did not
    change the port there is nothing to type. Press **Check it is running**. The

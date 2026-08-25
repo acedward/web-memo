@@ -25,8 +25,9 @@ server's version.
 
 The first `--build` compiles the proof server from source. It clones the pinned
 ledger, verifies it (see below) and builds it in debug with optimised
-dependencies; budget tens of minutes and a few GB of Docker disk. Every later
-`docker compose up -d` starts the existing image in a second.
+dependencies. Measured on a fast desktop: **2 min 12 s** end to end, for a
+726 MB image — budget longer on a laptop. Every later `docker compose up -d`
+starts the existing image in a second.
 
 On first start the server downloads the proving parameters into a Docker named
 volume — measured at **33 MB**, done in a few seconds — so the second start is
