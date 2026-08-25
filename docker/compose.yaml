@@ -1,0 +1,64 @@
+# The pinned proof server, as one command.
+#
+#     cd docker && docker compose up -d --build
+#
+# Then paste  http://localhost:6300  into the Create section of the page.
+#
+# The first `--build` compiles the proof server from source and takes a while
+# (tens of minutes on a laptop). Every later `up` reuses the image.
+#
+# There is deliberately NO CORS sidecar here. The pinned proof server wraps
+# itself in `Cors::permissive()` and reflects the caller's origin, which was
+# measured against a real browser at this exact commit; see docker/README.md.
+name: web-memo-proof-server
+
+services:
+  proof-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.proofserver
+      # These are the pins. Change them and you are no longer running the proof
+      # server this page's WASM bundle was built against — the image asserts
+      # them at build time and refuses to build if they do not hold.
+      args:
+        FORK_REPO: https://github.com/acedward/midnight-ledger.git
+        FORK_BRANCH: 00003-spend-proof-memo-binding
+        FORK_COMMIT: 32fdefc3cb310a823b9bd04fc13ab4c66a92cae3
+        LEDGER_BASELINE: 4823b5351b17cc49e30f19760dbd30a73cf95e22
+    image: web-memo-proofserver:32fdefc3
+    container_name: web-memo-proof-server
+
+    # Published on the LOOPBACK interface only. This server takes witness
+    # material and does unauthenticated work on it; it has no business being
+    # reachable from your network.
+    ports:
+      - "127.0.0.1:${PROOF_SERVER_PORT:-6300}:6300"
+
+    environment:
+      MIDNIGHT_PP: /params
+      MIDNIGHT_PROOF_SERVER_PORT: "6300"
+      # Set PROOF_SERVER_NO_FETCH_PARAMS=true when MIDNIGHT_PARAMS_DIR already
+      # holds a populated parameter cache and you want the server to refuse to
+      # reach the network for anything.
+      MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS: "${PROOF_SERVER_NO_FETCH_PARAMS:-false}"
+
+    # The proving parameters (a few hundred MB) are downloaded once on first
+    # start and kept in a named volume. To reuse a cache you already have, set
+    # MIDNIGHT_PARAMS_DIR to its ABSOLUTE path, e.g.
+    #   MIDNIGHT_PARAMS_DIR=$HOME/.cache/midnight/zk-params docker compose up -d
+    volumes:
+      - "${MIDNIGHT_PARAMS_DIR:-webmemo-proof-params}:/params:${PARAMS_MOUNT_MODE:-rw}"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:6300/health"]
+      interval: 5s
+      timeout: 5s
+      # First start downloads parameters before it listens, so the grace period
+      # is generous on purpose.
+      retries: 120
+      start_period: 10s
+
+    restart: unless-stopped
+
+volumes:
+  webmemo-proof-params:

@@ -15,7 +15,9 @@
     "test:read": "node test/read-matrix.mjs",
     "verify:fixtures": "node scripts/verify-fixtures.mjs",
     "verify": "npm run verify:vendor && npm run verify:fixtures",
-    "test:create": "node test/create-e2e.mjs"
+    "test:create": "node test/create-e2e.mjs",
+    "acceptance": "./acceptance/run-gate.sh .acceptance-out",
+    "acceptance:artifacts": "node test/create-artifacts.mjs .acceptance-out/artifacts/page"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^12.0.2",

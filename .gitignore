@@ -4,6 +4,12 @@ dist/
 npm-debug.log*
 .DS_Store
 
+# The acceptance gate builds outside the tree, but a stray `cargo` invocation
+# inside acceptance/ would land here. Its output directory too — logs and
+# freshly proved artifacts, never committed.
+acceptance/target/
+.acceptance-out/
+
 # NOTE: vendor/pkg/ is deliberately NOT ignored — the built WASM bundle is
 # vendored on purpose (see vendor/PROVENANCE.md). wasm-pack writes a
 # `.gitignore` containing `*` into its own output directory; that file is

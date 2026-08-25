@@ -1,0 +1,70 @@
+[package]
+name = "webmemo-acceptance"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+# THE ACCEPTANCE GATE — spec SC-004 / FR-012.
+#
+# It answers one question the browser cannot: would an unmodified node take
+# these bytes? The page verifies its own output before it displays it, which
+# proves the memo authenticates; it proves nothing about consensus. This crate
+# puts the offer file in front of the PINNED, UNMODIFIED ledger and asks.
+#
+# ---------------------------------------------------------------------------
+# WHY THE PATHS POINT OUTSIDE THIS REPOSITORY
+# ---------------------------------------------------------------------------
+# "Unmodified" has to be structural, not asserted in prose. These path
+# dependencies resolve to the PRISTINE pinned clone of the ledger — commit
+# 4823b5351b17cc49e30f19760dbd30a73cf95e22, tag `ledger-9.1.0.0-rc.3`,
+# published as `@midnightntwrk/ledger-v9@1.0.0-rc.3` — and NOT to the fork
+# branch this page's WASM bundle is built from. If they pointed at the fork,
+# "the memo machinery changed nothing consensus-visible" would be a tautology.
+#
+# The memo half of the gate comes from the project 00003 toolkit, which is
+# itself written against that same pristine clone. So both halves — the ledger's
+# `well_formed` and the detached companion verification — run against the
+# unmodified baseline.
+#
+# CONSEQUENCE, STATED PLAINLY: unlike everything else in this repository, this
+# directory does NOT build from a clone of it alone. It needs the 00003
+# workspace beside it, in the layout `acceptance/../../../` names. That is the
+# same arrangement `fixtures/generator/` uses and for the same reason. The page,
+# the build and the browser test suites depend on none of it.
+#
+# This crate is READ-ONLY over 00003: it adds nothing to either tree and builds
+# into a target directory outside both.
+
+[dependencies]
+zswap-memo-companion = { path = "../../../00003-spend-proof-memo-binding/zswap-memo-companion" }
+
+# `ledger` with its DEFAULT features on — `proof-verifying` is one of them, and
+# turning it off would make `well_formed` a shape check instead of a proof
+# check. (`fixtures/generator/` switches it off because it only needs the
+# structure types.)
+ledger = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/ledger", package = "midnight-ledger-v9" }
+zswap = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/zswap", package = "midnight-zswap" }
+transient-crypto = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/transient-crypto", package = "midnight-transient-crypto" }
+serialize = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/serialize", package = "midnight-serialize" }
+storage = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/storage", package = "midnight-storage" }
+coin-structure = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/coin-structure", package = "midnight-coin-structure" }
+base-crypto = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/base-crypto", package = "midnight-base-crypto" }
+zkir_v2 = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/zkir", package = "midnight-zkir" }
+midnight-onchain-runtime = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/onchain-runtime", package = "midnight-onchain-runtime", features = ["vendored"] }
+
+anyhow = "^1.0.102"
+hex = "^0.4.3"
+sha2 = "^0.10.9"
+
+# The toolkit's `[patch.crates-io]`, replicated: patches only apply from the
+# WORKSPACE ROOT, and this crate is the root of its own workspace. Paths are
+# re-based from this directory. Identical entries, same tag — nothing is fetched
+# from anywhere the toolkit does not already fetch from, and nothing is pushed.
+[patch.crates-io]
+midnight-transient-crypto-old = { git = "https://github.com/midnightntwrk/midnight-ledger", tag = "transient-crypto-2.2.0-rc.1", package = "midnight-transient-crypto" }
+midnight-base-crypto = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/base-crypto" }
+midnight-serialize = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/serialize" }
+
+# Crypto in an unoptimised build is molasses; mirror upstream's profile choice.
+[profile.dev.package."*"]
+opt-level = 2

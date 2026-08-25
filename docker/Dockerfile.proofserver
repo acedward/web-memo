@@ -1,0 +1,111 @@
+# The PINNED midnight-proof-server, built from source, in a container.
+#
+# This is not "a" proof server. It is the one at the ledger baseline this
+# page's WASM bundle was built against, and the image REFUSES TO BUILD if that
+# stops being true. Three assertions run at build time, each of which fails the
+# build:
+#
+#   1. the checkout is exactly ${FORK_COMMIT} on ${FORK_BRANCH};
+#   2. the working tree is clean;
+#   3. `git diff ${LEDGER_BASELINE} HEAD -- proof-server/` is EMPTY — i.e. the
+#      proof server's own source is BYTE-IDENTICAL to the upstream pinned
+#      baseline. The fork branch adds memo helpers to `zswap/`, `zkir-wasm/`
+#      and `ledger-wasm/` and touches nothing under `proof-server/`.
+#
+# Assertion 3 is the load-bearing one. Without it, "the pinned proof server"
+# would be a claim; with it, it is a property of the image. It is the same
+# assertion the project's Phase 0 and Phase 3 evidence was measured under.
+#
+# WHY BUILD FROM THE BRANCH AND NOT FROM THE BASELINE COMMIT ITSELF: `--locked`
+# is used deliberately, and the baseline's committed `Cargo.lock` does not
+# resolve cleanly for this workspace. The branch's first commit is a `Cargo.lock`
+# refresh, so `--locked` works there. Since assertion 3 proves `proof-server/`
+# is unchanged, building from the branch yields the baseline's proof server with
+# a lock file that actually resolves.
+#
+# WHY A DEBUG BUILD: the workspace root sets `[profile.dev.package."*"]
+# opt-level = 2`, so every dependency — halo2, midnight-circuits, zkir — is
+# optimised and only the proof server's own HTTP glue is not. Proving times are
+# therefore representative (measured: ~3.2 s per proof). This also matches how
+# the upstream project's own gates build it.
+
+# --------------------------------------------------------------------------
+# Stage 1 — assert the provenance, then build.
+# --------------------------------------------------------------------------
+FROM rust:1.95-bookworm AS build
+
+ARG FORK_REPO=https://github.com/acedward/midnight-ledger.git
+ARG FORK_BRANCH=00003-spend-proof-memo-binding
+ARG FORK_COMMIT=32fdefc3cb310a823b9bd04fc13ab4c66a92cae3
+ARG LEDGER_BASELINE=4823b5351b17cc49e30f19760dbd30a73cf95e22
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        clang cmake pkg-config libssl-dev git ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /usr/local/cargo && printf '[net]\ngit-fetch-with-cli = true\n' > /usr/local/cargo/config.toml
+
+WORKDIR /src
+
+# `--filter=blob:none` keeps the clone small; history is kept in full because
+# assertion 3 diffs against an ancestor commit.
+RUN git clone --single-branch --branch "$FORK_BRANCH" --filter=blob:none "$FORK_REPO" /src/ledger \
+ && cd /src/ledger \
+ && git checkout --detach "$FORK_COMMIT"
+
+# 1 + 2: the checkout is what it claims to be.
+RUN cd /src/ledger \
+ && test "$(git rev-parse HEAD)" = "$FORK_COMMIT" \
+ && test -z "$(git status --porcelain)" \
+ && echo "OK: clean checkout at $FORK_COMMIT (branch $FORK_BRANCH)"
+
+# 3: the load-bearing fidelity assertion.
+RUN cd /src/ledger \
+ && test -z "$(git diff --name-only "$LEDGER_BASELINE" HEAD -- proof-server/)" \
+ && echo "OK: proof-server/ is byte-identical to the pinned baseline $LEDGER_BASELINE"
+
+ENV CARGO_TERM_COLOR=never CARGO_NET_RETRY=5 RUST_BACKTRACE=1
+
+RUN cd /src/ledger \
+ && CARGO_TARGET_DIR=/target cargo build --locked -p midnight-proof-server --bin midnight-proof-server \
+ && cp /target/debug/midnight-proof-server /usr/local/bin/midnight-proof-server \
+ && rm -rf /target \
+ && midnight-proof-server --help > /dev/null \
+ && echo "OK: proof server built"
+
+# What this image actually is, readable from the running container with
+# `docker compose exec proof-server cat /PROVENANCE.txt`.
+RUN cd /src/ledger \
+ && { echo "fork-repo: $FORK_REPO"; \
+      echo "fork-branch: $FORK_BRANCH"; \
+      echo "fork-commit: $(git rev-parse HEAD)"; \
+      echo "ledger-baseline: $LEDGER_BASELINE"; \
+      echo "proof-server-source: byte-identical to the baseline (asserted at build time)"; \
+      echo "proof-server-crate-version: $(grep -m1 '^version' proof-server/Cargo.toml)"; \
+      echo "actix-cors: $(grep -m1 'actix-cors' proof-server/Cargo.toml)"; \
+      echo "rustc: $(rustc --version)"; \
+      echo "profile: dev/debug (workspace sets [profile.dev.package.\"*\"] opt-level = 2)"; \
+    } > /PROVENANCE.txt \
+ && cat /PROVENANCE.txt
+
+# --------------------------------------------------------------------------
+# Stage 2 — a small runtime. Nothing but the binary and its provenance.
+# --------------------------------------------------------------------------
+FROM debian:bookworm-slim
+
+# The binary links rustls, not OpenSSL, so certificates are the only TLS
+# dependency. `curl` is here for the compose healthcheck.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /usr/local/bin/midnight-proof-server /usr/local/bin/midnight-proof-server
+COPY --from=build /PROVENANCE.txt /PROVENANCE.txt
+
+# The proving parameters live here. compose mounts a volume (or your own
+# ~/.cache/midnight/zk-params) at this path.
+ENV MIDNIGHT_PP=/params
+RUN mkdir -p /params
+
+EXPOSE 6300
+ENTRYPOINT ["midnight-proof-server"]

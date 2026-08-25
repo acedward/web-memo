@@ -62,14 +62,23 @@ Create needs a **proof server**, because the spend circuit is far too large to
 prove in a browser tab. The page never talks to a proof server you did not
 configure, and the default is your own machine.
 
-1. Run a `midnight-proof-server` at the pin this page's WASM bundle was built
-   from (see [`vendor/PROVENANCE.md`](vendor/PROVENANCE.md) for the commit). It
-   must serve `POST /prove` and `POST /prove-tx`; the page also calls
-   `GET /health` and `GET /version` for the **Check it is running** button.
-2. Put its URL in the Create section. The default is `http://localhost:6300`,
-   which is the proof server's own default port. The value is remembered in this
-   browser (`localStorage`), never sent anywhere, and only `http:`/`https:` URLs
-   are accepted.
+1. Start the pinned proof server — one command, from this repository:
+
+   ```sh
+   cd docker && docker compose up -d --build
+   ```
+
+   That is [`docker/`](docker/README.md): an image that **refuses to build**
+   unless its checkout is the exact ledger commit this page's WASM bundle was
+   built from *and* its `proof-server/` source is byte-identical to the upstream
+   pinned baseline. The first build compiles from source and takes a while;
+   later starts are instant. Nothing else is needed — no CORS proxy, no
+   sidecar.
+2. Put its URL in the Create section: **`http://localhost:6300`** — the proof
+   server's own default port, and the page's built-in default, so if you did not
+   change the port there is nothing to type. Press **Check it is running**. The
+   value is remembered in this browser (`localStorage`), never sent anywhere,
+   and only `http:`/`https:` URLs are accepted.
 3. Type a memo — 1 to 512 **bytes**, and the counter shows bytes, because that
    is the limit that bites (128 emoji is exactly 512 bytes; 129 is refused). A
    hex mode is there for binary memos.
@@ -153,9 +162,9 @@ an offer file, not one.
   payload to a **proof server you configure and run yourself**, defaulting to
   `localhost`. Witness material goes to that server; the page says so, and the
   seed and secret keys never leave the browser — the test suite asserts the
-  latter by scanning every outbound request body. A ready-made `docker/` setup
-  for the pinned proof server is not in this build yet; **Using Create** above
-  says exactly what the page needs from one.
+  latter by scanning every outbound request body. [`docker/`](docker/README.md)
+  runs that server for you in one command, pinned to the same ledger commit as
+  the WASM bundle.
 - **The page never submits anything to a network** and never moves funds.
   Producing and displaying files is its entire effect.
 
@@ -239,6 +248,29 @@ checks, among other things:
   context**, comes back authenticated with zero network requests — and a
   control that flips one byte of that same wrapper is refused.
 
+### The acceptance gate
+
+Both suites above run inside a browser, and a browser can only tell you the memo
+authenticates. Whether a node would take the bytes is a different question, and
+[`acceptance/`](acceptance/README.md) is where it is answered: it drives one
+real Create run, then hands the offer file to the **pinned, unmodified ledger's
+own `well_formed`** — with real proof verification — inside a container with no
+network.
+
+```sh
+PROOF_SERVER=http://localhost:6300 npm run acceptance
+```
+
+It also runs the detached memo verification and replays the frozen conformance
+vectors, with the controls that make those mean something: the spend proof must
+be **rejected** at row 0 = `MemoHashV1(memo)`, and the companion proof
+**rejected** at row 0 = 0.
+
+Unlike everything else here, that directory needs the upstream project's
+workspace beside this one — deliberately, because "unmodified ledger" has to be
+a property of what it links against rather than a claim in a comment. Its README
+explains the arrangement, and the one strictness switch it turns off and why.
+
 ### Deploy (Cloudflare Pages)
 
 `wrangler.jsonc` is the single source of truth (project `web-memo`, build output
@@ -274,8 +306,16 @@ src/create/artifacts.js      bech32m rendering, copy and download
 src/create/ui.js             the Create section's DOM and the test hook
 fixtures/                    frozen reference artifacts + SHA256SUMS + provenance
 fixtures/generator/          verbatim archive of the program that made them
+docker/                      the pinned proof server, in one command
+docker/Dockerfile.proofserver  clones the pinned ledger and asserts three things
+docker/compose.yaml          ports, parameters, healthcheck — all overridable
+acceptance/                  the consensus gate: the offer file vs the PINNED ledger
+acceptance/src/main.rs       every check, and the strictness reasoning in its header
+acceptance/run-gate.sh       artifacts -> image -> gate -> teardown -> exit status
 test/read-matrix.mjs         the browser suite (`npm test`)
 test/inpage-matrix.js        the tamper matrix, executed inside the page
+test/create-e2e.mjs          the Create suite (`npm run test:create`)
+test/create-artifacts.mjs    one Create run, written to disk, for the gate
 test/cdp.mjs, test/serve.mjs dependency-free Chrome driver + static server
 vendor/pkg/                  vendored wasm-pack --target web build (19.25 MiB)
 vendor/pkg/SHA256SUMS        manifest for all 32 vendored files

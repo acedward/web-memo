@@ -160,11 +160,13 @@ export function mountCreate(wasm, root) {
             el('label', { className: 'filelabel' }, [el('span', { text: 'Demo seed:' }), seedSelect]),
         ]),
         el('p', { className: 'muted small' }, [
-            el('span', { text: 'No proof server? The repository README’s ' }),
-            el('strong', { text: 'Using Create' }),
+            el('span', { text: 'No proof server? The repository ships one, pinned to the same ledger commit as this ' +
+                'page’s WebAssembly bundle. From a clone: ' }),
+            el('span', { className: 'code', text: 'cd docker && docker compose up -d --build' }),
             el('span', {
-                text: ' section says exactly what the page needs from one, and which ledger commit it should ' +
-                    'be built from. The default above is the proof server’s own default port.',
+                text: ' — then leave the URL above as it is. See docker/README.md for the options, ' +
+                    'the provenance assertions and how to remove it again. The default above is the proof ' +
+                    'server’s own default port.',
             }),
         ]),
         el('div', { className: 'controls' }, [createBtn, cancelBtn]),
