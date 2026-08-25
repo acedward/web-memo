@@ -70,7 +70,7 @@ Both touch `ledger-wasm/src/memo_wasm.rs` only (+489 / −15 lines combined).
   field carries, and what worked at `da1d2f04` — is now **refused**, with an
   error naming the expected tag `midnight:shielded-token-type[v1]:`. Code
   written against the older pin must be updated; see
-  [`docs/js-api-notes.md`](../docs/js-api-notes.md) §5.
+  [`docs/js-api-notes.md`](../docs/js-api-notes.md) §1.
 
 ## Build command
 

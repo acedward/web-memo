@@ -362,3 +362,49 @@ anomaly. `memoAnchorScan` returns well-formed version 1 anchors only, so a
 ciphertext that is anchor-shaped but fails full decode is invisible from
 JavaScript. Say so rather than implying a clean scan means no such ciphertext
 exists.
+
+## 15. A proof server's answer is NOT the encoding a memo wrapper wants
+
+This is the one gap the `32fdefc3` re-pin did not close, and it bites at the very
+last step of a Create flow — after the construction, after both proofs.
+
+```js
+const res = await fetch(`${base}/prove`, { method: 'POST', body: companionPayload });
+const proof = new Uint8Array(await res.arrayBuffer());
+
+memoWrapperBuild(memo, nullifier, segment, tail, proof);   // accepts it…
+memoWrapperVerify(wrapper, offerBytes, segment);
+// Error: companion proof is not readable:
+//        expected header tag 'midnight:proof[v5]:', got 'midnight:proof-vers'
+```
+
+Measured against this repository's own Rust-produced reference wrapper:
+
+| bytes | length | prefix |
+| --- | --- | --- |
+| what a wrapper carries | 4853 | `midnight:proof[v5]:` (19 B) |
+| what `POST /prove` returns | 4860 | `midnight:proof-versioned:` (25 B) + `0x01` |
+
+Same 4834-byte body. Upstream `/prove` ends with
+`tagged_serialize(&ProofVersioned::V2(proof))`, while the wrapper verifier reads
+its proof with `tagged_deserialize::<Proof>`, and `ProofVersioned` serialises as
+a one-byte discriminant followed by the inner `Proof`'s untagged bytes.
+
+**Nothing in this surface converts between them.** The WASM `Proof` class *holds*
+a `ProofVersioned` (`impl ProofKind for ProofMarker { type Proof =
+ProofVersioned }`), so `Proof.deserialize(x).serialize()` is the identity on the
+versioned form; and `ZswapInput.proof` on a **proven** input converts the inner
+proof *into* the versioned form on its way to JavaScript, so pulling it out of a
+proven offer does not help either.
+
+This repository re-tags, in `src/create/proofcodec.js` — one function, every
+constant named, the upstream source cited, and fail-closed: it refuses any prefix
+it does not recognise, and a wrong re-tag cannot survive `memoWrapperVerify`,
+which the Create flow always runs on its own output before displaying it. It is
+recorded upstream as an open question (**Q-W11**) with the recommendation that a
+binding do the conversion; when that lands, delete the file.
+
+**If you are writing your own consumer**, the trap to avoid is assuming the
+re-tag is unconditionally right: only the `V2` discriminant has ever been
+verified here. A `V3` proof is a different circuit generation, and quietly
+re-tagging it would produce bytes that look fine and are not.
