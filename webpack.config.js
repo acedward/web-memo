@@ -73,6 +73,15 @@ export default {
                     // minifier for no benefit.
                     info: { minimized: true },
                 },
+                {
+                    // The frozen reference artifacts (see fixtures/PROVENANCE.md).
+                    // Same `minimized` flag, same reason: these are final bytes
+                    // whose SHA-256s are published, and nothing in the build is
+                    // allowed to rewrite them.
+                    from: 'fixtures',
+                    to: 'fixtures',
+                    info: { minimized: true },
+                },
             ],
         }),
     ],

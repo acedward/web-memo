@@ -146,9 +146,11 @@ The only routes to proven bytes are:
 So a proving flow built on this surface is Transaction-shaped, not Offer-shaped.
 Note the resulting seam: `memoWrapperVerify(wrapper, offer, segment)` expects a
 **tagged `zswap::Offer`**, while a MIP-0005 offer file is a full Transaction.
-Whichever bytes the Read section treats as "the offer file", it must bridge
-these two, and it must first confirm a Transaction→offer accessor is actually
-reachable from JavaScript rather than assuming it.
+
+**MEASURED, and the seam closes — see §11.** A Transaction→offer accessor is
+reachable, the bytes it yields are exactly what the verifier eats, and
+whole-transaction bytes are refused outright, so the extraction is mandatory
+rather than optional.
 
 ## 8. `memoWrapperBuild` needs a `statement_tail` that nothing produces
 
@@ -184,3 +186,124 @@ that browsers do not implement. This repo resolves it with an import map in
 patching `vendor/pkg/package.json` — that only helps Node and bundler
 resolution, and it breaks the byte-fidelity the provenance manifest depends on.
 Full explanation in [`../vendor/PROVENANCE.md`](../vendor/PROVENANCE.md).
+
+## 11. Reading an offer file: the Transaction→offer seam, measured
+
+Both accessors exist on `Transaction.prototype` with real getters **and**
+setters:
+
+```js
+const tx = wasm.Transaction.deserialize('signature', 'proof', 'pre-binding', raw);
+
+tx.guaranteedOffer        // ZswapOffer | undefined          (segment 0)
+tx.fallibleOffer          // Map<segment:number, ZswapOffer> | undefined
+tx.fallibleOffer.get(3).serialize()   // the bytes memoWrapperVerify wants
+```
+
+Three things worth knowing, all measured against the vendored bundle in a real
+browser:
+
+* `ZswapOffer.serialize()` returns the **tagged** form, byte-identical to a
+  `tagged_serialize(&offer)` written by Rust. That is exactly the second
+  argument `memoWrapperVerify` takes.
+* Handing `memoWrapperVerify` the WHOLE transaction fails with
+  `offer is not a readable proven Offer: expected header tag
+  'midnight:zswap-offer[v5](proof[v5]):', got 'midnight:transaction[v12](signature['`.
+  Extraction is not a nicety.
+* `memoAnchorScan` works over transaction bytes as well as offer bytes (its own
+  doc says so), and the anchors it finds are **variable width** — 122 and 123
+  bytes both occur in this repo's own reference fixtures. Never assume a length
+  or a position; select an anchor by its decoded `(nullifier, h)`.
+
+### The marker triple is READABLE off the bytes
+
+`Transaction.deserialize(signatureMarker, proofMarker, bindingMarker, raw)`
+expects the caller to know three markers. Do not brute-force them — a failed
+attempt on a multi-megabyte input is not free. Each valid combination has a
+distinct ASCII header tag that is literally the start of the bytes:
+
+| signature | proof | binding | header tag |
+| --- | --- | --- | --- |
+| `signature` | `proof` | `binding` | `midnight:transaction[v12](signature[v2],proof,pedersen-schnorr[v1]):` |
+| `signature` | `proof` | `pre-binding` | `midnight:transaction[v12](signature[v2],proof,embedded-fr[v1]):` |
+| `signature` | `pre-proof` | `binding` | `midnight:transaction[v12](signature[v2],proof-preimage,pedersen-schnorr[v1]):` |
+| `signature` | `pre-proof` | `pre-binding` | `midnight:transaction[v12](signature[v2],proof-preimage,embedded-fr[v1]):` |
+| `signature` | `no-proof` | `no-binding` | `midnight:transaction[v12](signature[v2],(),pedersen[v1]):` |
+| `signature-erased` | … | … | the same five with `()` in place of `signature[v2]` |
+
+The other five combinations are refused up front with `Unsupported transaction
+type provided.` Note that **binding is part of the serialization, not a view**:
+you cannot re-read bound bytes as `pre-binding`.
+
+`src/read/classify.js` holds this table.
+
+## 12. A PROVEN offer cannot be put into a Transaction from JavaScript
+
+All three routes are closed, so do not go looking:
+
+| attempt | result |
+| --- | --- |
+| `Transaction.fromParts(net, provenOffer, …)` | `Guaranteed offer must be unproven.` — by design |
+| `emptyTx.mockProve()` then `addZswapOffer(seg, provenOffer)` | `mockProve()` returns a **bound** transaction (`pedersen-schnorr[v1]`), and every offer setter refuses one: `Transaction is already bound.` |
+| re-read the mock-proven bytes as `pre-binding` first | fails on the header tag — see §11 |
+
+The only JS route to a proven transaction is the proof server
+(`createProvingTransactionPayload`). Anything that needs to *assemble* a
+transaction around an already-proven offer has to do it in Rust; this repo's
+`fixtures/generator/` is that, and `fixtures/PROVENANCE.md` explains why.
+
+Also note `addZswapOffer` takes a `SegmentSpecifier`, not a number:
+`{ tag: 'specific', value: 3 }` (or `{ tag: 'first' }`, `{ tag: 'guaranteedOnly' }`,
+`{ tag: 'random' }`). A bare `0` fails with `invalid type: floating point 0.0,
+expected adjacently tagged enum SegmentSpecifier`.
+
+## 13. The bech32m codec is HRP-agnostic — use it for both artifacts
+
+`memoWrapperToBech32m(bytes, hrp)` does **not** validate that `bytes` are a
+wrapper. It rendered a 10,076-byte proven offer as a 16,136-character
+`swapoffer1…` string, and `memoWrapperFromBech32m(s, 'swapoffer')` round-tripped
+it byte-exactly. So there is no reason to write a second bech32m implementation
+for the offer side, and every reason not to.
+
+What it does enforce, all confirmed:
+
+| behaviour | message |
+| --- | --- |
+| the prefix must be the one you asked for | `bech32m prefix is "swapmsg", not the expected "swapoffer"` |
+| the checksum is real | `bech32m checksum does not verify` |
+| BIP-173's case rule holds | an all-uppercase string decodes fine |
+
+There is no 90-character limit — that is a Bitcoin address convention, not a
+property of bech32m.
+
+## 14. Result shapes the Read path depends on
+
+None of these are visible in the `.d.ts`, which types them `object` / `any`.
+
+```js
+memoWrapperParse(bytes)
+// { unverifiedMemo: Uint8Array, nullifier: Uint8Array, segment: number,
+//   claimedStatementTail: Uint8Array, companionProof: Uint8Array,
+//   untrustedLocator: Uint8Array }
+
+memoWrapperVerify(wrapper, offerBytes, segment)
+// { memo: Uint8Array, nullifier: Uint8Array, segment: number, h: Uint8Array,
+//   matchingAnchors: [{ outputIndex: number, coinCommitment: string }],
+//   duplicateAnchors: boolean }
+
+memoAnchorScan(bytes)
+// [{ offset: number, length: number, nullifier: Uint8Array, h: Uint8Array }]
+```
+
+`unverifiedMemo` is named that way so it cannot be reached for by accident:
+parsing is not verifying, and only `memoWrapperVerify`'s `memo` may be shown as
+authenticated. An **empty** `matchingAnchors` is not a failure — it is the
+weaker "authenticated but unanchored" state, and a reader must present it as
+such. `duplicateAnchors` is an anomaly to surface, never a reason to downgrade
+authentication.
+
+One thing the bindings do **not** expose: 00003's "malformed anchor candidate"
+anomaly. `memoAnchorScan` returns well-formed version 1 anchors only, so a
+ciphertext that is anchor-shaped but fails full decode is invisible from
+JavaScript. Say so rather than implying a clean scan means no such ciphertext
+exists.

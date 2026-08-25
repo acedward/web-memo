@@ -18,17 +18,45 @@ spend, provable by anyone, without leaking any key.
 
 ## Status
 
-**Phase 1 — scaffolding.** What exists today is the repository, the build, the
-deployment configuration, and the vendored cryptographic engine, with a stub
-page that proves the WASM module loads in a real browser and reproduces a
-known-answer `MemoHashV1` value from the frozen conformance vectors.
+**The Read section works.** Give the page an offer file and its memo wrapper and
+it verifies the pair entirely in your browser — no network request, no key, no
+wallet — and reports the memo plus one of six trust states, with a plain-language
+account of what that state does and does not prove.
 
-The two user-facing halves are not built yet:
-
-| Section | What it will do | State |
+| Section | What it does | State |
 | --- | --- | --- |
-| **Read** | paste an offer file + memo wrapper, verify fully offline, show the memo and one of six trust states | not built |
+| **Read** | paste or upload an offer file + memo wrapper, verify fully offline, show the memo inertly and the trust state | **working** |
 | **Create** | build a demo-state offer with your memo, prove it, emit both artifacts | not built |
+
+Create is absent rather than stubbed. It needs a binding the WASM surface does
+not export yet (nothing produces the wrapper's statement tail), so a button for
+it today would be a button that cannot work.
+
+### Try it without having any artifacts
+
+The page ships a small corpus of real reference artifacts — including a
+deliberately hostile memo and a two-input transaction carrying the identical memo
+on both spends — behind **Try it**. They carry genuine proofs and are anchored to
+a throwaway demo state, so they are format-valid and proof-valid and could never
+settle anywhere. See [`fixtures/PROVENANCE.md`](fixtures/PROVENANCE.md).
+
+### What Read reports
+
+Exactly one of the six states defined by the format, per piece of evidence:
+
+| state | shows a memo? | reachable from a file? |
+| --- | --- | --- |
+| No memo evidence | no | yes |
+| Malformed or untrusted | no | yes |
+| Committed but missing — the memo bytes are absent | no | yes |
+| Companion authenticated, but unanchored | yes | yes |
+| Authenticated with a matching anchor — **unconfirmed** | yes | yes |
+| Settled, authenticated with a matching anchor | yes | **no** |
+
+The last row is the honest one. Settlement is a fact about a chain, and this page
+only ever sees a file — so it lists the state, marks it unreachable, and never
+claims it. `Committed but missing` shows no memo bytes on purpose: a published
+commitment is not the memo.
 
 ## What the finished page will demonstrate
 
@@ -59,6 +87,13 @@ wallet — the verifier key is compiled into the WASM bundle.
 
 They are deliberately kept separate so the offer file stays readable by any
 other MIP-0005 tool that knows nothing about memos.
+
+**An offer file is a full proven transaction, not a bare Zswap offer.** The page
+extracts the zswap offer from the transaction — guaranteed slot or the
+per-segment fallible map — before checking anything, because the verifier refuses
+whole-transaction bytes outright. Bare tagged `zswap::Offer` bytes are therefore
+**refused with a precise reason** rather than half-read: they are a fragment of
+an offer file, not one.
 
 ## Caveats you should read before trusting anything here
 
@@ -116,14 +151,32 @@ npm run build          # -> dist/
 npm run dev            # webpack-dev-server on :8080 (PORT=nnnnn to override)
 ```
 
-Then open the served page; the stub reports the module init time and its
-known-answer check.
-
-Verify the vendored bundle against its manifest at any time:
+Verify the vendored bundle and the frozen reference artifacts against their
+manifests at any time:
 
 ```sh
-npm run verify:vendor
+npm run verify          # verify:vendor + verify:fixtures
 ```
+
+### Tests
+
+The suite runs the **built `dist/`** in a real headless Chrome, served exactly as
+Cloudflare Pages would serve it, and drives the page's own entry points rather
+than a private copy of the pipeline.
+
+```sh
+npm test                # verify + build + the browser suite
+CHROME_BIN=/path/to/chrome npm run test:read     # if Chrome is not where it usually is
+```
+
+It covers the tamper matrix (memo bit-flip, grafted companion proof, perturbed
+statement row, re-attributed nullifier, crossed pairs, spliced and truncated
+wrapper sections, oversize and malformed inputs), the inert rendering of a
+genuinely authenticated hostile memo, per-input attribution when two inputs carry
+the identical memo, and an **airplane test**: with every artifact already in
+memory, a full parse-verify-render cycle must make zero network requests. Every
+tampered artifact is constructed at test time from the frozen fixtures, so its
+defect is visible in the source rather than baked into a committed file.
 
 ### Deploy (Cloudflare Pages)
 
@@ -139,16 +192,31 @@ npm run pages:deploy
 ## Repository layout
 
 ```
-public/index.html          page shell + the import map that resolves `#self`
-src/wasm.js                the only loader for the vendored WASM bundle
-src/index.js               Phase 1 stub: load + known-answer self-check
-vendor/pkg/                vendored wasm-pack --target web build (19.25 MiB)
-vendor/pkg/SHA256SUMS      manifest for all 32 vendored files
-vendor/PROVENANCE.md       source commit, exact build command, toolchain, sums
-scripts/verify-vendor.mjs  `npm run verify:vendor`
-docs/js-api-notes.md       sharp edges in the WASM JS surface — read before use
-webpack.config.js          build; copies vendor/pkg -> dist/pkg byte-for-byte
-wrangler.jsonc             Cloudflare Pages project config
+public/index.html            page shell + the import map that resolves `#self`
+src/index.js                 bootstrap: load the engine, check it, mount Read
+src/wasm.js                  the only loader for the vendored WASM bundle
+src/lib/dom.js               the ONLY way this page builds DOM (textContent only)
+src/lib/inert.js             inert rendering of untrusted bytes (port of 00003 inert.rs)
+src/lib/bytes.js             hex/ASCII helpers, no interpretation
+src/read/classify.js         size bounds and tag-based routing, before any parse
+src/read/parse.js            transaction -> per-segment offers; wrapper -> fields
+src/read/verify.js           the verify pipeline (offline, client-side)
+src/read/trust.js            the six trust states, and which are reachable here
+src/read/memoview.js         the memo panel: text / strict-ASCII / hex
+src/read/ui.js               the Read section's DOM and the test hook
+fixtures/                    frozen reference artifacts + SHA256SUMS + provenance
+fixtures/generator/          verbatim archive of the program that made them
+test/read-matrix.mjs         the browser suite (`npm test`)
+test/inpage-matrix.js        the tamper matrix, executed inside the page
+test/cdp.mjs, test/serve.mjs dependency-free Chrome driver + static server
+vendor/pkg/                  vendored wasm-pack --target web build (19.25 MiB)
+vendor/pkg/SHA256SUMS        manifest for all 32 vendored files
+vendor/PROVENANCE.md         source commit, exact build command, toolchain, sums
+scripts/verify-vendor.mjs    `npm run verify:vendor`
+scripts/verify-fixtures.mjs  `npm run verify:fixtures`
+docs/js-api-notes.md         sharp edges in the WASM JS surface — read before use
+webpack.config.js            build; copies vendor/pkg -> dist/pkg byte-for-byte
+wrangler.jsonc               Cloudflare Pages project config
 ```
 
 ### One thing worth knowing about the build

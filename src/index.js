@@ -1,20 +1,29 @@
 /**
- * index.js — Phase 1 stub.
+ * index.js — page bootstrap.
  *
- * Its only job is to prove, in a real browser, that the vendored `ledger-wasm`
- * bundle loads through the import map and answers a known-answer MemoHashV1
- * call. The Create and Read sections replace this in later phases.
+ * Two jobs, in this order:
+ *
+ *   1. load the vendored `ledger-wasm` bundle and prove it is the one this
+ *      project was specified against, by reproducing two of 00003's frozen
+ *      `MemoHashV1` conformance vectors. If the bundle ever stops reproducing
+ *      them, every verdict the page could give would be worthless — so the
+ *      check runs first and is visible, not hidden in a test file.
+ *   2. mount the Read section.
+ *
+ * The Create section (User Story 2) is a later phase and is deliberately absent
+ * rather than stubbed: a disabled button that looks like a feature is worse
+ * than an honest sentence.
  */
 
-import { loadLedgerWasm, initMs, MEMO_EXPORTS } from './wasm.js';
+import { el, fill } from './lib/dom.js';
+import { toHex, fromHex } from './lib/bytes.js';
+import { MEMO_EXPORTS, initMs, loadLedgerWasm } from './wasm.js';
+import { mountRead } from './read/ui.js';
 
 // ---------------------------------------------------------------------------
 // Known answers, copied from the 00003 frozen conformance vectors
 // (`vectors/memo-hash.txt`, records `memo-hash/ascii-hello-world` and
-// `memo-hash/one-zero-byte`). These are the arbiter of the format: if the
-// vendored WASM ever stops reproducing them, the bundle is not the one this
-// project was specified against. The full vector set arrives with the Read
-// section.
+// `memo-hash/one-zero-byte`). These are the arbiter of the format.
 // ---------------------------------------------------------------------------
 const MEMO_HASH_VECTORS = [
     {
@@ -29,87 +38,47 @@ const MEMO_HASH_VECTORS = [
     },
 ];
 
-const hexToBytes = (hex) =>
-    Uint8Array.from(hex.match(/../g) ?? [], (b) => parseInt(b, 16));
-
-const bytesToHex = (bytes) =>
-    Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-
-/** Escape-free rendering: every value reaches the DOM as textContent. */
-function cell(text, className) {
-    const td = document.createElement('td');
-    td.textContent = text;
-    if (className) td.className = className;
-    return td;
-}
-
-function renderResults(report) {
-    const el = document.getElementById('results');
-    el.hidden = false;
-    el.replaceChildren();
-
-    const table = document.createElement('table');
-    const addRow = (label, value, className) => {
-        const tr = document.createElement('tr');
-        const th = document.createElement('th');
-        th.textContent = label;
-        tr.append(th, cell(value, className));
-        table.append(tr);
-    };
-
-    addRow('module init', `${report.initMs} ms`);
-    addRow('exports', String(report.exportCount));
-    addRow(
-        'memo bindings',
-        `${report.memoPresent}/${MEMO_EXPORTS.length} present`,
-        report.memoPresent === MEMO_EXPORTS.length ? 'ok' : 'fail',
-    );
-    for (const check of report.checks) {
-        addRow(
-            check.name,
-            check.pass ? `${check.got}  ✓` : `${check.got}  ✗ expected ${check.expected}`,
-            check.pass ? 'ok mono break' : 'fail mono break',
+function renderSelfTest(report) {
+    const status = document.getElementById('status');
+    if (!report.ok) {
+        fill(
+            status,
+            el('p', { className: 'fail', text: report.error || 'The cryptographic engine did not come up.' }),
+            el('p', {
+                className: 'muted small',
+                text: 'Nothing on this page can be trusted while this line is red: every verdict below depends on this module.',
+            }),
         );
+        return;
     }
-    el.append(table);
-}
-
-function setStatus(text, className) {
-    const el = document.getElementById('status');
-    el.replaceChildren();
-    const span = document.createElement('span');
-    span.textContent = text;
-    if (className) span.className = className;
-    el.append(span);
+    fill(
+        status,
+        el('p', {}, [
+            el('span', { className: 'ok', text: '✓ ' }),
+            el('span', {
+                text: `Verifier ready — ${report.memoPresent}/${MEMO_EXPORTS.length} memo bindings, both frozen MemoHashV1 vectors reproduced byte-exactly, ${report.initMs} ms to load.`,
+            }),
+        ]),
+        el('p', {
+            className: 'muted small',
+            text: 'The verifier key is compiled into that module. From here on, checking a memo needs no network, no keys and no wallet.',
+        }),
+    );
 }
 
 async function main() {
-    const report = {
-        ok: false,
-        initMs: null,
-        exportCount: 0,
-        memoPresent: 0,
-        checks: [],
-        error: null,
-    };
+    const report = { ok: false, initMs: null, exportCount: 0, memoPresent: 0, checks: [], error: null };
 
     try {
         const wasm = await loadLedgerWasm();
 
         report.initMs = initMs;
         report.exportCount = Object.keys(wasm).length;
-        report.memoPresent = MEMO_EXPORTS.filter(
-            (name) => typeof wasm[name] === 'function',
-        ).length;
+        report.memoPresent = MEMO_EXPORTS.filter((name) => typeof wasm[name] === 'function').length;
 
         for (const vector of MEMO_HASH_VECTORS) {
-            const got = bytesToHex(wasm.memoHashV1(hexToBytes(vector.memoHex)));
-            report.checks.push({
-                name: vector.name,
-                got,
-                expected: vector.expected,
-                pass: got === vector.expected,
-            });
+            const got = toHex(wasm.memoHashV1(fromHex(vector.memoHex)));
+            report.checks.push({ name: vector.name, got, expected: vector.expected, pass: got === vector.expected });
         }
 
         report.ok =
@@ -117,18 +86,31 @@ async function main() {
             report.checks.length === MEMO_HASH_VECTORS.length &&
             report.checks.every((c) => c.pass);
 
-        setStatus(
-            report.ok
-                ? 'WASM loaded and every known-answer check passed.'
-                : 'WASM loaded but a check FAILED — see below.',
-            report.ok ? 'ok' : 'fail',
-        );
-        renderResults(report);
+        renderSelfTest(report);
+
+        if (report.ok) {
+            mountRead(wasm, document.getElementById('read'));
+        } else {
+            fill(
+                document.getElementById('read'),
+                el('p', {
+                    className: 'fail',
+                    text: 'The Read section is not available: the WebAssembly module did not reproduce the frozen conformance vectors, so it is not the build this page was specified against.',
+                }),
+            );
+        }
     } catch (err) {
         report.error = String(err && err.message ? err.message : err);
-        setStatus(`Failed to load the WASM module: ${report.error}`, 'fail');
+        renderSelfTest(report);
+        fill(
+            document.getElementById('read'),
+            el('p', { className: 'fail', text: `The cryptographic engine could not be loaded: ${report.error}` }),
+            el('p', {
+                className: 'muted small',
+                text: 'This page needs WebAssembly. If your browser has it disabled, nothing here can run.',
+            }),
+        );
     } finally {
-        // The headless test driver reads this.
         window.__WEBMEMO_SELFTEST__ = report;
         window.dispatchEvent(new CustomEvent('webmemo:selftest', { detail: report }));
     }

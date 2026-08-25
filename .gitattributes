@@ -5,3 +5,7 @@
 # vendor/pkg/SHA256SUMS stays verifiable on every platform.
 vendor/pkg/**            -text
 vendor/pkg/*.wasm        binary
+
+# The frozen reference artifacts are binary and their SHA-256s are published in
+# fixtures/SHA256SUMS. Nothing may normalise a byte of them on any platform.
+fixtures/*.bin           binary

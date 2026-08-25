@@ -49,17 +49,21 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     background: #0d1117; color: #c9d1d9;
-    padding: 32px 20px 80px; max-width: 900px; margin: 0 auto;
+    padding: 32px 20px 80px; max-width: 940px; margin: 0 auto;
     line-height: 1.55;
   }
   h1 { font-size: 22px; margin-bottom: 4px; }
-  h2 { font-size: 15px; margin: 28px 0 10px; color: #e6edf3; }
+  h2 { font-size: 16px; margin: 34px 0 6px; color: #e6edf3; }
+  h3 { font-size: 13px; margin-bottom: 8px; color: #e6edf3; text-transform: uppercase; letter-spacing: .06em; }
+  h4 { font-size: 13px; margin: 14px 0 6px; color: #adbac7; }
   p { margin-bottom: 10px; }
   a { color: #58a6ff; }
-  code, .mono {
+  code, .mono, .code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
   }
+  .code { color: #d2a8ff; }
+  .small { font-size: 12.5px; }
   .banner {
     border: 1px solid #9e6a03; background: #2b2005; color: #e3b341;
     border-radius: 6px; padding: 12px 14px; margin: 16px 0 24px; font-size: 13px;
@@ -69,19 +73,77 @@
     border: 1px solid #30363d; background: #161b22;
     border-radius: 6px; padding: 14px 16px; margin-bottom: 14px;
   }
+  .card.error { border-color: #f85149; background: #24121280; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  td, th { text-align: left; padding: 5px 10px 5px 0; vertical-align: top; }
-  th { color: #8b949e; font-weight: 500; }
+  td, th { text-align: left; padding: 4px 10px 4px 0; vertical-align: top; }
+  th { color: #8b949e; font-weight: 500; white-space: nowrap; }
   .ok   { color: #3fb950; }
   .fail { color: #f85149; }
-  .muted { color: #8b949e; font-size: 12px; }
+  .warn-text { color: #e3b341; }
+  .muted { color: #8b949e; }
   .break { word-break: break-all; }
+  .spacer { flex: 1; }
+
+  textarea.paste {
+    width: 100%; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
+    border-radius: 6px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; resize: vertical;
+  }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  .filelabel { display: flex; gap: 6px; align-items: center; font-size: 12.5px; color: #8b949e; }
+  button {
+    background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px;
+    padding: 5px 12px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #30363d; }
+  button.primary { background: #238636; border-color: #2ea043; color: #fff; }
+  button.primary:hover { background: #2ea043; }
+  button.small-btn { padding: 2px 8px; font-size: 11.5px; }
+  button.toggle.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .examples { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+
+  ul.loaded { list-style: none; }
+  ul.loaded li { display: flex; gap: 10px; align-items: center; padding: 4px 0; border-top: 1px solid #21262d; flex-wrap: wrap; }
+  ul.loaded li:first-child { border-top: none; }
+  .tag { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; color: #8b949e; }
+  .tag.ok { border-color: #2ea043; color: #3fb950; }
+
+  .state { border: 1px solid #30363d; border-radius: 6px; padding: 12px 14px; margin: 12px 0; }
+  .state.good { border-color: #2ea043; }
+  .state.warn { border-color: #9e6a03; }
+  .state.bad  { border-color: #f85149; }
+  .state-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
+  .pill { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 12px; border: 1px solid; }
+  .pill.good { color: #3fb950; border-color: #2ea043; background: #0f2d16; }
+  .pill.warn { color: #e3b341; border-color: #9e6a03; background: #2b2005; }
+  .pill.bad  { color: #f85149; border-color: #f85149; background: #2b1212; }
+  .pill.neutral { color: #8b949e; border-color: #30363d; }
+  .sub { margin-top: 12px; }
+  ul.notes { margin-left: 18px; font-size: 12.5px; color: #8b949e; }
+  ul.notes li { margin-bottom: 4px; }
+  table.states td, table.attrib td { border-top: 1px solid #21262d; }
+
+  /* The memo box. `unicode-bidi: isolate` is a second, redundant barrier on
+     top of the escaping in lib/inert.js: even a bidi control that escaped the
+     table could not reorder the report around it. */
+  .memo { border: 1px solid #30363d; border-radius: 6px; margin: 12px 0; overflow: hidden; }
+  .memo.unverified { border-color: #f85149; }
+  .memo-head { display: flex; gap: 10px; align-items: center; background: #0d1117; padding: 6px 10px; border-bottom: 1px solid #30363d; flex-wrap: wrap; }
+  .memo-caption { font-size: 12px; font-weight: 600; color: #e6edf3; }
+  .memo-body {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; padding: 10px; white-space: pre-wrap; word-break: break-word;
+    max-height: 340px; overflow: auto; background: #0d1117;
+    unicode-bidi: isolate; direction: ltr;
+  }
+  .memo p { padding: 0 10px; }
+  .memo p:last-child { padding-bottom: 8px; }
 </style>
 </head>
 <body>
 
 <h1>web-memo</h1>
-<p class="muted">Authenticated memos on Zswap offers — experimental demo.</p>
+<p class="muted">Authenticated memos on Zswap offers — an experimental demo of <em>memo-v3</em>.</p>
 
 <div class="banner">
   <strong>Experimental demo. Not an official Midnight product.</strong><br>
@@ -90,22 +152,37 @@
   Nothing here is submitted to any network.
 </div>
 
-<h2>Phase 1 stub — vendored WASM self-check</h2>
-<p class="muted">
-  This build is scaffolding: it proves the vendored <code>ledger-wasm</code>
-  bundle loads in this browser and answers a known-answer <code>MemoHashV1</code>
-  call. The Create and Read sections land in later phases.
-</p>
-
 <div class="card" id="status">
-  <span class="muted">Loading the WASM module…</span>
+  <p class="muted">Loading the verifier…</p>
 </div>
 
-<div class="card" id="results" hidden></div>
+<h2>Read — check a memo</h2>
+<p class="muted small">
+  Give this page an <strong>offer file</strong> (a full proven transaction) and,
+  if you have one, its <strong>memo wrapper</strong>. It will tell you what the
+  memo says, which spend it is bound to, and exactly how much that is worth
+  knowing. Everything happens in this browser: no network request is made while
+  checking, and no key or wallet is involved.
+</p>
 
-<p class="muted">
+<div id="read"></div>
+
+<h2>Create</h2>
+<p class="muted small">
+  Building a memo'd offer in the browser is a later phase of this project and is
+  not in this build. Rather than show a button that does nothing, the section is
+  absent until it works.
+</p>
+
+<h2>About</h2>
+<p class="muted small">
   Source, provenance and caveats:
-  <a href="https://github.com/acedward/web-memo">github.com/acedward/web-memo</a>
+  <a href="https://github.com/acedward/web-memo">github.com/acedward/web-memo</a>.
+  The formats are frozen by the 00003 conformance vectors; the bech32m prefix
+  <code>swapmsg</code> is <strong>provisional</strong>. A memo is not private:
+  the pair (nullifier, memo-hash) it publishes is a correlation handle, identical
+  memos hash identically, and a short memo can be guessed offline. Treat this as
+  a technology demonstration, not a private messaging channel.
 </p>
 
 </body>

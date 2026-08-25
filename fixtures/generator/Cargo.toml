@@ -1,0 +1,53 @@
+[package]
+name = "webmemo-txfixture"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+# 00005 PHASE 2 task 2.5 — generate the TRANSACTION-shaped reference fixtures
+# the web page ships as its "try it" examples and its test corpus.
+#
+# Why this exists in Rust rather than in the page's own JavaScript: plan finding
+# F-2.3. `ledger-wasm` cannot put an already-PROVEN zswap offer into a
+# Transaction (fromParts refuses proven offers, mockProve returns a BOUND
+# transaction and every offer setter refuses a bound one), and Q-W7 means a NEW
+# offer could not be given a wrapper from JS either, because nothing exports the
+# statement tail `memoWrapperBuild` demands. So the reference pair is built by
+# the 00003 toolkit — the implementation 00003 froze and certified — and only
+# the Transaction envelope is added here.
+#
+# This crate is READ-ONLY over 00003: it path-depends on the toolkit and,
+# through it, on the PRISTINE pinned ledger clone. It adds no code to either and
+# builds into a target dir outside both.
+
+[dependencies]
+zswap-memo-companion = { path = "../../../00003-spend-proof-memo-binding/zswap-memo-companion" }
+ledger = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/ledger", package = "midnight-ledger-v9", default-features = false }
+zswap = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/zswap", package = "midnight-zswap" }
+transient-crypto = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/transient-crypto", package = "midnight-transient-crypto" }
+serialize = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/serialize", package = "midnight-serialize" }
+storage = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/storage", package = "midnight-storage" }
+coin-structure = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/coin-structure", package = "midnight-coin-structure" }
+base-crypto = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/base-crypto", package = "midnight-base-crypto" }
+zkir_v2 = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/zkir", package = "midnight-zkir" }
+midnight-onchain-runtime = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/onchain-runtime", package = "midnight-onchain-runtime", features = ["vendored"] }
+
+anyhow = "^1.0.102"
+hex = "^0.4.3"
+rand = { version = "^0.8.4", features = ["getrandom"] }
+sha2 = "^0.10.9"
+tokio = { version = "^1.46.1", features = ["rt", "rt-multi-thread", "macros"] }
+tracing = "^0.1.41"
+tracing-subscriber = "^0.3.19"
+
+# The toolkit's `[patch.crates-io]`, replicated: patches only apply from the
+# WORKSPACE ROOT, and this crate is the root of its own workspace. Paths are
+# re-based from this directory. Identical entries, same tag — nothing is fetched
+# from anywhere the toolkit does not already fetch from, and nothing is pushed.
+[patch.crates-io]
+midnight-transient-crypto-old = { git = "https://github.com/midnightntwrk/midnight-ledger", tag = "transient-crypto-2.2.0-rc.1", package = "midnight-transient-crypto" }
+midnight-base-crypto = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/base-crypto" }
+midnight-serialize = { path = "../../../00003-spend-proof-memo-binding/midnight-ledger-fork/serialize" }
+
+[profile.dev.package."*"]
+opt-level = 2
