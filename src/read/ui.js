@@ -172,7 +172,7 @@ export function mountRead(wasm, root) {
             button('Add', addFromPaste, 'primary'),
             el('label', { className: 'filelabel' }, [el('span', { text: 'or choose files:' }), fileInput]),
             el('span', { className: 'spacer' }),
-            button('Clear all', () => { state.offer = null; state.wrappers = []; lastReport = null; lastError = null; redraw(); }),
+            button('Clear all', () => clearAll()),
         ]),
         el('p', {
             className: 'muted small',
@@ -261,6 +261,16 @@ export function mountRead(wasm, root) {
     setMode(MODES.DEMO);
 
     // -- behaviour ---------------------------------------------------------
+    /** Forget everything loaded, whichever mode put it there. */
+    function clearAll() {
+        state.offer = null;
+        state.wrappers = [];
+        lastReport = null;
+        lastError = null;
+        markSelected(null);
+        redraw();
+    }
+
     function fail(err) {
         lastError = err instanceof ReadError ? err : new ReadError(CODES.PARSE_FAILED, String(err && err.message ? err.message : err));
         redraw();
@@ -364,7 +374,7 @@ export function mountRead(wasm, root) {
         // Resolves when the demo load a CLICK started has finished. The suite
         // clicks the list the way a visitor does and then waits for this.
         settled: () => pendingLoad,
-        clear: () => { state.offer = null; state.wrappers = []; lastReport = null; lastError = null; markSelected(null); redraw(); },
+        clear: () => clearAll(),
         verify: () => { verify(); return summarise(lastReport, lastError); },
         summary: () => summarise(lastReport, lastError),
         examples: EXAMPLES.map((e) => e.id),
