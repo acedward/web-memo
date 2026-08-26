@@ -169,6 +169,30 @@ export function mountCreate(wasm, root) {
                     'server’s own default port.',
             }),
         ]),
+        // Chrome's Local Network Access permission governs exactly this
+        // transition: a page on a public origin reaching a loopback address.
+        // Measured on the deployed site it does not block a normal browser, but
+        // a locked-down or automated one refuses with a message that names LNA
+        // rather than the proof server, which sends people hunting in the wrong
+        // place. Naming the error here is what makes it findable.
+        el('p', { className: 'muted small' }, [
+            el('span', {
+                text: 'If your browser refuses to reach the proof server and the console mentions ' +
+                    'local network access (',
+            }),
+            el('span', { className: 'code', text: 'ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS' }),
+            el('span', {
+                text: '), that is the browser guarding the boundary between a public page and your ' +
+                    'own machine, not a fault in the proof server. Allow local network access for ' +
+                    'this site when your browser offers to, or run this page from your own machine ' +
+                    'instead — a clone plus ',
+            }),
+            el('span', { className: 'code', text: 'npm run dev' }),
+            el('span', {
+                text: ' puts the page and the proof server on the same side of that boundary, and ' +
+                    'the question stops arising.',
+            }),
+        ]),
         el('div', { className: 'controls' }, [createBtn, cancelBtn]),
     ]);
 

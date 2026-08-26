@@ -1,8 +1,14 @@
 # web-memo
 
+**Live at <https://web-memo.pages.dev>**
+
 A single static web page that **creates and verifies Zswap offers carrying an
 authenticated memo** — a short message cryptographically bound to a specific
 spend, provable by anyone, without leaking any key.
+
+Read works on the deployed page with nothing installed and no network — paste a
+pair, get a verdict. Create additionally needs a proof server on your own
+machine, which [`docker/`](docker/README.md) starts in one command.
 
 > ### ⚠️ Experimental demonstration. Not an official Midnight product.
 >
@@ -18,9 +24,11 @@ spend, provable by anyone, without leaking any key.
 
 ## Status
 
-**Both sections work.** Read verifies a pair entirely in your browser — no
-network request, no key, no wallet. Create builds one, end to end, and then
-verifies its own output with Read before showing it to you.
+**Both sections work, and both were checked against the deployed page** at
+<https://web-memo.pages.dev> rather than only against a local build. Read
+verifies a pair entirely in your browser — no network request, no key, no
+wallet. Create builds one, end to end, and then verifies its own output with
+Read before showing it to you.
 
 | Section | What it does | State |
 | --- | --- | --- |
@@ -89,6 +97,34 @@ configure, and the default is your own machine.
 An https page may call `http://localhost` — localhost is a
 potentially-trustworthy origin and is exempt from mixed-content blocking — so
 this works from the deployed site against a proof server on your own machine.
+That was measured against <https://web-memo.pages.dev> itself, not assumed.
+
+#### If your browser blocks the deployed page from reaching localhost
+
+Chrome governs exactly this transition — a page on a public origin reaching a
+loopback address — with the **Local Network Access** permission. On the deployed
+site it did not block a normal browser: four independent runs of a real Chrome
+151 reached `http://localhost` with no prompt shown and no request refused. But a
+browser that *does* enforce it refuses with
+
+```
+net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS
+Permission was denied for this request to access the `loopback` address space.
+```
+
+and the message names the browser, not the proof server, which is exactly where
+people start looking. Two things fix it:
+
+1. **Allow local network access for this site** if your browser offers the
+   choice (Chrome asks, or it is under the site's permission settings).
+2. **Or run the page from your own machine** instead of the deployed one —
+   `npm run dev` after a clone. Both ends are then on the same side of that
+   boundary and the permission never comes into it. This is also what the
+   automated test suite does, because headless browsers deny the permission
+   outright.
+
+Neither is a workaround for a defect in this page: the boundary is the browser's
+and it is there for good reasons.
 
 **What leaves your browser, precisely.** The two proving payloads. They contain
 the spend's proof preimage and, for the companion, the memo bytes. They do
@@ -172,6 +208,7 @@ an offer file, not one.
 
 | | |
 | --- | --- |
+| The page itself | <https://web-memo.pages.dev> |
 | Ledger fork carrying the memo helpers and JS bindings | [acedward/midnight-ledger#2](https://github.com/acedward/midnight-ledger/pull/2) — branch `00003-spend-proof-memo-binding`, pinned at `32fdefc3` |
 | MIP-0005 revision — offer files as full proven transactions | [midnightntwrk/midnight-improvement-proposals#227](https://github.com/midnightntwrk/midnight-improvement-proposals/pull/227) |
 | MIP-0006 revision — publication and transport of swap offers | [midnightntwrk/midnight-improvement-proposals#228](https://github.com/midnightntwrk/midnight-improvement-proposals/pull/228) |
@@ -273,13 +310,24 @@ explains the arrangement, and the one strictness switch it turns off and why.
 
 ### Deploy (Cloudflare Pages)
 
-`wrangler.jsonc` is the single source of truth (project `web-memo`, build output
-`dist`). The account comes from your logged-in Wrangler session, so no account
-ID or token is committed.
+The page is published at **<https://web-memo.pages.dev>**, deployed from a clean
+clone of this repository with the commands below and nothing else.
+
+`wrangler.jsonc` is the single source of truth (project `web-memo`, production
+branch `production`, build output `dist`). The account comes from your logged-in
+Wrangler session, so no account ID or token is committed.
 
 ```sh
 npx wrangler login
 npm run pages:deploy
+```
+
+The deployed bundle is byte-identical to `vendor/pkg/`, which you can check
+yourself without trusting the deploy:
+
+```sh
+curl -s https://web-memo.pages.dev/pkg/midnight_ledger_wasm_v9_bg.wasm | shasum -a 256
+grep midnight_ledger_wasm_v9_bg.wasm vendor/pkg/SHA256SUMS
 ```
 
 ## Repository layout
