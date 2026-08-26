@@ -49,8 +49,36 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     background: #0d1117; color: #c9d1d9;
-    padding: 32px 20px 80px; max-width: 940px; margin: 0 auto;
+    padding: 32px 20px 80px; max-width: 1360px; margin: 0 auto;
     line-height: 1.55;
+  }
+
+  /* ------------------------------------------------------------------
+     The two columns: Create on the left, Read on the right.
+
+     `minmax(0, 1fr)` rather than `1fr` on purpose — a grid track's default
+     minimum is `auto`, and this page renders 16 000-character bech32m
+     strings and 32-byte hex nullifiers. Without the explicit 0 minimum a
+     single unbreakable string would push its column wider than the
+     viewport and take the whole layout with it.
+
+     Below 1000px the two columns become one. The Read column is ordered
+     first when stacked: a narrow screen is the least likely place someone
+     has a proof server to point Create at, and the demo list works
+     everywhere.
+     ------------------------------------------------------------------ */
+  .columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .column { min-width: 0; }
+  .column > h2:first-child { margin-top: 0; }
+  @media (max-width: 1000px) {
+    .columns { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    #col-read { order: -1; }
+    .column > h2:first-child { margin-top: 28px; }
   }
   h1 { font-size: 22px; margin-bottom: 4px; }
   h2 { font-size: 16px; margin: 34px 0 6px; color: #e6edf3; }
@@ -122,6 +150,27 @@
   .tag { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; color: #8b949e; }
   .tag.ok { border-color: #2ea043; color: #3fb950; }
 
+  /* The bundled demo transactions, as a labelled list rather than a row of
+     buttons whose meaning lives in a tooltip. */
+  ul.demolist { list-style: none; }
+  ul.demolist li {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 8px 0; border-top: 1px solid #21262d;
+  }
+  ul.demolist li:first-child { border-top: none; }
+  ul.demolist li.selected { background: #10161f; }
+  .demo-title { font-size: 13px; color: #e6edf3; font-weight: 600; }
+  .demo-text { min-width: 0; }
+
+  /* A copy-pasteable command block. */
+  .cmdblock { margin: 6px 0 10px; }
+  pre.cmd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; color: #d2a8ff; background: #0d1117;
+    border: 1px solid #30363d; border-radius: 6px;
+    padding: 10px 12px; overflow-x: auto; white-space: pre;
+  }
+
   .state { border: 1px solid #30363d; border-radius: 6px; padding: 12px 14px; margin: 12px 0; }
   .state.good { border-color: #2ea043; }
   .state.warn { border-color: #9e6a03; }
@@ -174,27 +223,36 @@
   <p class="muted">Loading the verifier…</p>
 </div>
 
-<h2>Read — check a memo</h2>
-<p class="muted small">
-  Give this page an <strong>offer file</strong> (a full proven transaction) and,
-  if you have one, its <strong>memo wrapper</strong>. It will tell you what the
-  memo says, which spend it is bound to, and exactly how much that is worth
-  knowing. Everything happens in this browser: no network request is made while
-  checking, and no key or wallet is involved.
-</p>
+<div class="columns">
 
-<div id="read"></div>
+  <section class="column" id="col-create">
+    <h2>Create — make a memo'd offer</h2>
+    <p class="muted small">
+      Type a memo, and this page will mint a demo coin, spend it, commit the memo
+      to that spend, have the two proofs made by a proof server you choose, and
+      hand you the pair of artifacts. Then it checks its own work with the
+      verifier above before showing you anything. The coin is imaginary and the
+      offer could never settle — the <em>proofs</em> are real.
+    </p>
 
-<h2>Create — make a memo'd offer</h2>
-<p class="muted small">
-  Type a memo, and this page will mint a demo coin, spend it, commit the memo to
-  that spend, have the two proofs made by a proof server you choose, and hand you
-  the pair of artifacts. Then it checks its own work with the verifier above
-  before showing you anything. The coin is imaginary and the offer could never
-  settle — the <em>proofs</em> are real.
-</p>
+    <div id="create"></div>
+  </section>
 
-<div id="create"></div>
+  <section class="column" id="col-read">
+    <h2>Read — check a memo</h2>
+    <p class="muted small">
+      Pick one of the <strong>bundled demo transactions</strong>, or give this
+      page your own <strong>offer file</strong> (a full proven transaction) and,
+      if you have one, its <strong>memo wrapper</strong>. Either way it will tell
+      you what the memo says, which spend it is bound to, and exactly how much
+      that is worth knowing. Everything happens in this browser: no network
+      request is made while checking, and no key or wallet is involved.
+    </p>
+
+    <div id="read"></div>
+  </section>
+
+</div>
 
 <h2>About</h2>
 <p class="muted small">

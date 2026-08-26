@@ -30,6 +30,32 @@
         return new Uint8Array(await res.arrayBuffer());
     }
 
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const modeButton = (mode) => document.querySelector(`#read-mode button[data-mode="${mode}"]`);
+    const demoButton = (id) => document.querySelector(`#read-demo button[data-example="${id}"]`);
+    const demoItem = (id) => document.querySelector(`#read-demo li[data-example="${id}"]`);
+    /** Is this element actually on screen, i.e. could a user click it? */
+    const visible = (node) => Boolean(node && node.offsetParent !== null);
+
+    /**
+     * Load one bundled demo transaction the way a visitor does: switch to the
+     * demo mode and CLICK its entry in the list. Driving the DOM rather than
+     * `api.loadExample` is the point — it is what makes these checks evidence
+     * that the new list works, not just that the old pipeline still does.
+     */
+    async function clickDemo(id) {
+        modeButton('demo').click();
+        const btn = demoButton(id);
+        if (!btn) throw new Error(`no demo entry "${id}" in the list`);
+        if (!visible(btn)) throw new Error(`the demo entry "${id}" is not visible, so a user could not click it`);
+        btn.click();
+        // A demo entry is several fetches; `settled()` is the page's own handle
+        // on the load THIS click started, so the assertion that follows sees a
+        // finished report rather than a half-loaded one.
+        await api.settled();
+        return api.summary();
+    }
+
     /** Load an offer file plus zero or more wrappers, from bytes already in the page. */
     function load(offerBytes, wrappers, labels = []) {
         api.clear();
@@ -48,7 +74,9 @@
         const othTx = await fx('unrelated.offer-tx.bin');
         const othWrap = await fx('unrelated.wrapper.bin');
         const hostileTx = await fx('hostile-memo.offer-tx.bin');
-        const hostileWrap = await fx('hostile-memo.wrapper.bin');
+        // The hostile pair is loaded through the demo list (H0 below), so only
+        // the offer file is fetched here — to prove the entry really serves the
+        // frozen fixture and not some other bytes.
         const multiTx = await fx('two-inputs-same-memo.offer-tx.bin');
         const multiW1 = await fx('two-inputs-same-memo-1.wrapper.bin');
         const multiW2 = await fx('two-inputs-same-memo-2.wrapper.bin');
@@ -99,6 +127,118 @@
                 !/\bSETTLED\b/i.test(s.pageText) || /cannot reach|needs chain evidence/i.test(s.pageText),
                 'settlement wording checked');
             R.info.validPair = it;
+        }
+
+        // ============================== D — the two Read modes and the demo list
+        // Post-v1 iteration 1. These checks are about INPUT ROUTING only: every
+        // one of them ends in the same verification the rest of this file
+        // exercises, and the expected outcomes below are written out here
+        // rather than read out of `src/read/ui.js`, so the page cannot grade
+        // its own homework.
+        {
+            const demoBtn = modeButton('demo');
+            const customBtn = modeButton('custom');
+            check('D1', 'the Read section offers exactly two modes, named as specified',
+                document.querySelectorAll('#read-mode button[data-mode]').length === 2 &&
+                demoBtn && demoBtn.textContent === 'Read Demo Transactions' &&
+                customBtn && customBtn.textContent === 'Read Custom Artifact',
+                Array.from(document.querySelectorAll('#read-mode button[data-mode]')).map((b) => b.textContent).join(' | '));
+
+            demoBtn.click();
+            check('D2', 'in "Read Demo Transactions" the demo list is on screen and the paste box is not',
+                api.mode() === 'demo' && visible(document.getElementById('read-demo')) &&
+                !visible(document.getElementById('paste')) && !visible(document.getElementById('files')),
+                `mode=${api.mode()}`);
+
+            customBtn.click();
+            check('D3', 'in "Read Custom Artifact" the paste box AND the file picker are on screen, and the demo list is not',
+                api.mode() === 'custom' && visible(document.getElementById('paste')) &&
+                visible(document.getElementById('files')) && !visible(document.getElementById('read-demo')),
+                `mode=${api.mode()}`);
+
+            demoBtn.click();
+            check('D4', 'switching back restores the demo list — the selector works both ways',
+                api.mode() === 'demo' && visible(document.getElementById('read-demo')) && !visible(document.getElementById('paste')),
+                `mode=${api.mode()}`);
+
+            const ids = Array.from(document.querySelectorAll('#read-demo li[data-example]')).map((li) => li.dataset.example);
+            const labels = Array.from(document.querySelectorAll('#read-demo li[data-example] .demo-title')).map((n) => n.textContent.trim());
+            const listText = document.getElementById('read-demo').textContent;
+            // The frozen fixture families the repository ships. Every one of
+            // them must be represented in the list a visitor sees.
+            const FAMILIES = ['reference', 'unrelated', 'hostile-memo', 'two-inputs-same-memo', 'no-anchor', 'guaranteed-segment'];
+            check('D5', 'the demo list names every bundled fixture family',
+                FAMILIES.every((f) => listText.includes(f)),
+                FAMILIES.filter((f) => !listText.includes(f)).join(', ') || 'all present');
+            check('D6', 'every demo entry carries a short human label and a Load button',
+                ids.length >= FAMILIES.length && labels.length === ids.length &&
+                labels.every((t) => t.length > 3) && ids.every((id) => Boolean(demoButton(id))),
+                `${ids.length} entries: ${labels.join(' / ')}`);
+            R.info.demoEntries = ids;
+        }
+        {
+            // One check per entry, each loaded by clicking the list. The
+            // expectations are hardcoded here on purpose.
+            const EXPECT = [
+                ['D7', 'reference', 'a valid pair authenticates, and the memo is rendered once',
+                    (s) => s.items.length === 1 && s.items[0].state === 'AuthenticatedWithMatchingAnchorUnconfirmed'
+                        && s.items[0].memoHex === HELLO && s.renderedMemoCount === 1],
+                ['D8', 'anchor-only', 'the wrapper-stripped entry reports CommittedButMissing and shows NO memo',
+                    (s) => s.items.length === 1 && s.items[0].state === 'CommittedButMissing'
+                        && s.items[0].h === HELLO_H && s.renderedMemoCount === 0],
+                ['D9', 'mismatch', 'the crossed pair authenticates nothing and renders no memo',
+                    (s) => s.items.length > 0 && s.items.every((i) => !i.authenticated)
+                        && s.items.some((i) => i.state === 'MalformedOrUntrusted') && s.renderedMemoCount === 0],
+                ['D10', 'two-inputs', 'two inputs carrying one memo both authenticate, attributed separately',
+                    (s) => s.items.length === 2
+                        && s.items.filter((i) => i.state === 'AuthenticatedWithMatchingAnchorUnconfirmed').length === 2
+                        && new Set(s.items.map((i) => i.nullifier)).size === 2 && s.renderedMemoCount === 2],
+                ['D11', 'hostile', 'the hostile memo authenticates, all 148 bytes of it',
+                    (s) => s.items.length === 1 && s.items[0].state === 'AuthenticatedWithMatchingAnchorUnconfirmed'
+                        && s.items[0].memoLength === 148 && s.renderedMemoCount === 1],
+                ['D12', 'no-anchor', 'the anchorless offer reports NoEvidence',
+                    (s) => s.items.length === 1 && s.items[0].state === 'NoEvidence' && s.renderedMemoCount === 0],
+                ['D13', 'guaranteed', 'the guaranteed-segment entry authenticates through the guaranteed slot',
+                    (s) => s.items.length === 1 && s.items[0].state === 'AuthenticatedWithMatchingAnchorUnconfirmed'
+                        && s.offerFile.offers[0].slot === 'guaranteed' && s.offerFile.offers[0].segment === 0],
+                ['D14', 'bare-offer', 'the bare-offer entry is refused precisely, and renders nothing',
+                    (s) => Boolean(s.error) && s.error.code === 'BARE_OFFER_NOT_AN_OFFER_FILE' && s.renderedMemoCount === 0],
+            ];
+            for (const [id, example, what, expect] of EXPECT) {
+                let s = null;
+                let err = null;
+                try { s = await clickDemo(example); } catch (e) { err = String(e.message || e); }
+                const selected = demoItem(example);
+                check(id, `demo list — ${example}: ${what}`,
+                    Boolean(s) && expect(s) && selected && selected.className === 'selected',
+                    err || (s ? `${s.items.map((i) => i.state).join(', ') || (s.error && s.error.code)} · ${s.renderedMemoCount} memo(s) rendered` : 'no summary'));
+            }
+        }
+        {
+            // Two entries clicked in quick succession must not interleave. A
+            // demo entry is several fetches, so without a guard the older
+            // load's wrappers can land on the newer load's offer file and the
+            // page reports on a pair nobody assembled. Clicking a two-wrapper
+            // entry and immediately a one-item entry is exactly that race.
+            modeButton('demo').click();
+            demoButton('two-inputs').click();
+            demoButton('no-anchor').click();
+            await api.settled();
+            await sleep(300);   // let any superseded load finish being ignored
+            const s = api.summary();
+            check('D15', 'clicking two demo entries in quick succession leaves ONLY the last one loaded',
+                s.items.length === 1 && s.items[0].state === 'NoEvidence' && s.renderedMemoCount === 0
+                && demoItem('no-anchor').className === 'selected',
+                `${s.items.map((i) => i.state).join(', ')} · ${s.renderedMemoCount} memo(s)`);
+        }
+        {
+            // Loading a demo entry must not have taught the page a private
+            // route: the custom path still works immediately afterwards.
+            modeButton('custom').click();
+            const s = load(refTx, [refWrap]);
+            check('D16', 'after using the demo list, the custom paste path still verifies normally',
+                s.items.length === 1 && s.items[0].state === 'AuthenticatedWithMatchingAnchorUnconfirmed' && s.renderedMemoCount === 1,
+                `${s.items[0] && s.items[0].state}`);
         }
 
         // ===================================================== M — memo tamper
@@ -411,9 +551,17 @@
         }
 
         // ============================================ H — hostile memo (FR-018)
+        // Reached the way a visitor reaches it since post-v1 iteration 1: by
+        // clicking the hostile entry in the demo list. The twelve assertions
+        // below are unchanged — what changed is that the bytes now arrive
+        // through the shipped list rather than through a test-only call.
         {
-            const s = load(hostileTx, [hostileWrap]);
+            const s = await clickDemo('hostile');
             const it = item0(s);
+            check('H0', 'the hostile memo is reachable by clicking the demo list entry, and it is the FROZEN fixture',
+                demoItem('hostile') && demoItem('hostile').className === 'selected' && s.items.length === 1
+                && s.offerFile && s.offerFile.byteLength === hostileTx.length,
+                `${s.items.length} item(s) from the list, offer ${s.offerFile && s.offerFile.byteLength} B vs fixture ${hostileTx.length} B`);
             check('H1', 'a hostile memo AUTHENTICATES — the format does not judge content',
                 it.state === 'AuthenticatedWithMatchingAnchorUnconfirmed' && it.memoLength === 148,
                 `${it.state}, ${it.memoLength} bytes`);

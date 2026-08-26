@@ -116,6 +116,40 @@ async function main() {
         `);
         check('S3', 'the witness-goes-to-the-server disclosure is on the page, before the button', disclosure);
 
+        // Post-v1 iteration 1: the "no proof server?" answer must be the WHOLE
+        // sequence, starting from a clone. `test/read-matrix.mjs` checks it
+        // against the checkout's real git origin; here it is checked where it
+        // matters most — in the section that needs the proof server.
+        const commands = await evaluate(cdp, sessionId, `
+            (() => { const n = document.getElementById('proof-server-commands'); return n ? n.textContent : null; })()
+        `);
+        check('S4', 'the Create section shows the complete clone-first proof-server sequence',
+            commands === 'git clone https://github.com/acedward/web-memo\ncd web-memo/docker\ndocker compose up -d --build',
+            JSON.stringify(commands));
+        check('S5', 'that command block is copyable, and the LNA guidance is still with it',
+            await evaluate(cdp, sessionId, `
+                (() => {
+                    const t = document.getElementById('create').textContent;
+                    return Boolean(document.querySelector('[data-copy="proof-server-commands"]'))
+                        && t.includes('ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS');
+                })()
+            `));
+
+        // The page is two columns now: Create on the left, Read on the right.
+        // Both the structure (which mount point lives in which column, and in
+        // what order) and the rendered geometry at this viewport.
+        check('S6', 'Create is the left column and Read is the right one, each holding its own section',
+            await evaluate(cdp, sessionId, `
+                (() => {
+                    const c = document.getElementById('col-create'), r = document.getElementById('col-read');
+                    if (!c || !r) return false;
+                    const ordered = Boolean(c.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING);
+                    const mounted = Boolean(document.querySelector('#col-create #create') && document.querySelector('#col-read #read'));
+                    const leftOf = c.getBoundingClientRect().left < r.getBoundingClientRect().left;
+                    return ordered && mounted && leftOf;
+                })()
+            `));
+
         // ================================================================ A
         // The memo bound, and the fact that it is enforced before any egress.
         const marker = () => events.requests.length;

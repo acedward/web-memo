@@ -8,6 +8,17 @@
  * "the user put the offer in the wrapper box" is not a state this page can be
  * in. Everything is rendered through `dom.el`, i.e. `textContent`.
  *
+ * Post-v1 iteration 1 added a **mode selector** above the inputs:
+ *
+ *     [ Read Demo Transactions | Read Custom Artifact ]
+ *
+ * It is a routing choice about where bytes come from, and nothing else. Both
+ * modes end in the same `add()` → `runRead()` → `renderReport()` path, the same
+ * six trust states and the same inert renderer; a demo fixture gets no more
+ * credit for being bundled than a pasted string does. The demo mode replaces the
+ * v1 "Try it" button strip with a labelled LIST of the frozen fixtures the repo
+ * ships.
+ *
  * The module also publishes `window.__WEBMEMO_READ__`, which is how the headless
  * tamper matrix drives the page. That hook calls exactly the same functions the
  * buttons do — a test that passed against a private copy of the pipeline would
@@ -23,10 +34,17 @@ import { locatorView, memoView, unverifiedMemoView } from './memoview.js';
 import { STATE_INFO, STATE_ORDER, STATES } from './trust.js';
 import { runRead } from './verify.js';
 
-/** The bundled reference corpus (task 2.5), as "try it" examples. */
+/**
+ * The bundled reference corpus (task 2.5), as the demo-transaction list.
+ *
+ * `fixture` names the frozen family in `fixtures/` each entry is built from, so
+ * a reader of the list can go and check the bytes for themselves; `title` is the
+ * short human label and `blurb` says what the entry is for.
+ */
 export const EXAMPLES = Object.freeze([
     {
         id: 'reference',
+        fixture: 'reference',
         title: 'A valid pair',
         blurb: 'One input, one memo ("hello world"), one matching anchor. The expected result is authenticated with a matching anchor — unconfirmed.',
         offer: 'reference.offer-tx.bin',
@@ -34,6 +52,7 @@ export const EXAMPLES = Object.freeze([
     },
     {
         id: 'anchor-only',
+        fixture: 'reference',
         title: 'The wrapper was stripped',
         blurb: 'The same offer file, with no wrapper supplied. The anchor is still there, so the page can tell a memo existed — and cannot tell you what it said.',
         offer: 'reference.offer-tx.bin',
@@ -41,6 +60,7 @@ export const EXAMPLES = Object.freeze([
     },
     {
         id: 'mismatch',
+        fixture: 'unrelated + reference',
         title: 'A wrapper from a different offer',
         blurb: 'A valid wrapper paired with an unrelated offer file. Nothing here is corrupt; the two simply do not belong together.',
         offer: 'unrelated.offer-tx.bin',
@@ -48,6 +68,7 @@ export const EXAMPLES = Object.freeze([
     },
     {
         id: 'two-inputs',
+        fixture: 'two-inputs-same-memo',
         title: 'Two inputs, the same memo',
         blurb: 'One transaction, two spends, the identical memo on both. Attribution stays per input: same memo-hash, different nullifiers.',
         offer: 'two-inputs-same-memo.offer-tx.bin',
@@ -55,6 +76,7 @@ export const EXAMPLES = Object.freeze([
     },
     {
         id: 'hostile',
+        fixture: 'hostile-memo',
         title: 'A hostile memo, authenticated',
         blurb: 'A genuinely authenticated memo made of HTML, a script tag, an ANSI colour sequence, a right-to-left override, a zero-width space and a NUL byte. Authentication says a witness authorized these bytes; it says nothing about them being safe.',
         offer: 'hostile-memo.offer-tx.bin',
@@ -62,6 +84,7 @@ export const EXAMPLES = Object.freeze([
     },
     {
         id: 'no-anchor',
+        fixture: 'no-anchor',
         title: 'No memo at all',
         blurb: 'An ordinary offer file with no anchor and no wrapper.',
         offer: 'no-anchor.offer-tx.bin',
@@ -69,6 +92,7 @@ export const EXAMPLES = Object.freeze([
     },
     {
         id: 'guaranteed',
+        fixture: 'guaranteed-segment',
         title: 'A memo on the guaranteed segment',
         blurb: 'The same construction in the transaction’s guaranteed slot (segment 0) rather than a fallible one.',
         offer: 'guaranteed-segment.offer-tx.bin',
@@ -76,6 +100,7 @@ export const EXAMPLES = Object.freeze([
     },
     {
         id: 'bare-offer',
+        fixture: 'reference',
         title: 'Bare offer bytes (refused)',
         blurb: 'The Zswap offer on its own, without the transaction around it. An offer file is a full proven transaction, so this is refused with a precise reason rather than half-read.',
         offer: 'reference.offer-bare.bin',
@@ -84,6 +109,9 @@ export const EXAMPLES = Object.freeze([
 ]);
 
 const FIXTURE_BASE = 'fixtures/';
+
+/** The two ways bytes get into the Read pipeline. Nothing downstream sees this. */
+export const MODES = Object.freeze({ DEMO: 'demo', CUSTOM: 'custom' });
 
 export function mountRead(wasm, root) {
     /** @type {{offer: object|null, wrappers: object[]}} */
@@ -152,21 +180,75 @@ export function mountRead(wasm, root) {
         }),
     ]);
 
-    // -- examples ----------------------------------------------------------
-    const examplesCard = el('div', { className: 'card' }, [
-        el('h3', { text: 'Try it' }),
+    // -- the demo-transaction list ----------------------------------------
+    // The v1 "Try it" strip was a row of unlabelled-looking buttons whose
+    // meaning lived in a `title` tooltip. This is the same corpus as a LIST:
+    // every entry states what it is on the page, where a reader will see it.
+    const demoItems = EXAMPLES.map((ex) => {
+        const load = button('Load', () => { void startLoad(ex.id); }, 'example small-btn');
+        load.dataset.example = ex.id;
+        load.title = ex.blurb;
+        return el('li', { dataset: { example: ex.id } }, [
+            el('div', { className: 'demo-text' }, [
+                el('div', { className: 'demo-title', text: ex.title }),
+                el('div', { className: 'muted small', text: ex.blurb }),
+                el('div', { className: 'muted small mono', text: `fixtures/ — ${ex.fixture}` }),
+            ]),
+            el('span', { className: 'spacer' }),
+            load,
+        ]);
+    });
+
+    const demoCard = el('div', { className: 'card', id: 'read-demo' }, [
+        el('h3', { text: 'Bundled demo transactions' }),
         el('p', {
             className: 'muted small',
-            text: 'Reference artifacts bundled with this page. They carry real proofs and are anchored to a throwaway demo state, so they are format-valid and proof-valid but could never settle on a live chain.',
+            text: 'The frozen reference artifacts this page ships. They carry real proofs and are anchored to a throwaway demo state, so they are format-valid and proof-valid but could never settle on a live chain. Each one goes through exactly the same verification as anything you paste.',
         }),
-        el('div', { className: 'examples' }, EXAMPLES.map((ex) => {
-            const b = button(ex.title, () => { void loadExample(ex.id); }, 'example');
-            b.title = ex.blurb;
-            b.dataset.example = ex.id;
-            return b;
-        })),
+        el('ul', { className: 'demolist' }, demoItems),
         el('p', { id: 'example-blurb', className: 'muted small', text: '' }),
     ]);
+
+    // -- mode selector -----------------------------------------------------
+    let mode = MODES.DEMO;
+
+    const demoModeBtn = button('Read Demo Transactions', () => setMode(MODES.DEMO), 'toggle on');
+    demoModeBtn.id = 'read-mode-demo';
+    demoModeBtn.dataset.mode = MODES.DEMO;
+    const customModeBtn = button('Read Custom Artifact', () => setMode(MODES.CUSTOM), 'toggle');
+    customModeBtn.id = 'read-mode-custom';
+    customModeBtn.dataset.mode = MODES.CUSTOM;
+
+    const modeBlurb = el('p', { id: 'read-mode-blurb', className: 'muted small', text: '' });
+
+    const modeCard = el('div', { className: 'card', id: 'read-mode' }, [
+        el('h3', { text: 'What would you like to check?' }),
+        el('div', { className: 'controls' }, [demoModeBtn, customModeBtn]),
+        modeBlurb,
+    ]);
+
+    function setMode(next) {
+        mode = next === MODES.CUSTOM ? MODES.CUSTOM : MODES.DEMO;
+        const isDemo = mode === MODES.DEMO;
+        demoModeBtn.className = `toggle${isDemo ? ' on' : ''}`;
+        customModeBtn.className = `toggle${isDemo ? '' : ' on'}`;
+        demoModeBtn.setAttribute('aria-pressed', String(isDemo));
+        customModeBtn.setAttribute('aria-pressed', String(!isDemo));
+        demoCard.hidden = !isDemo;
+        inputCard.hidden = isDemo;
+        modeBlurb.textContent = isDemo
+            ? 'Pick one of the transactions bundled with this page and it will be verified in front of you.'
+            : 'Paste or upload your own offer file and memo wrapper. Nothing you provide leaves this browser.';
+        return mode;
+    }
+
+    /** Mark which demo entry produced what is currently on screen. */
+    function markSelected(id) {
+        for (const li of demoItems) {
+            const on = li.dataset.example === id;
+            li.className = on ? 'selected' : '';
+        }
+    }
 
     // -- loaded list, report ----------------------------------------------
     const loadedCard = el('div', { className: 'card' });
@@ -174,8 +256,9 @@ export function mountRead(wasm, root) {
     const reportCard = el('div', { className: 'card' });
     const statesCard = el('div', { className: 'card' });
 
-    fill(root, inputCard, examplesCard, loadedCard, errorCard, reportCard, statesCard);
+    fill(root, modeCard, demoCard, inputCard, loadedCard, errorCard, reportCard, statesCard);
     renderStatesTable(statesCard);
+    setMode(MODES.DEMO);
 
     // -- behaviour ---------------------------------------------------------
     function fail(err) {
@@ -203,29 +286,61 @@ export function mountRead(wasm, root) {
         return lastReport;
     }
 
+    /**
+     * Load one bundled demo transaction.
+     *
+     * A demo entry is several fetches (an offer file plus zero, one or two
+     * wrappers), so two clicks in quick succession would otherwise interleave:
+     * the older load's wrappers would land on top of the newer load's offer and
+     * the page would report on a pair nobody assembled. `loadGeneration` is the
+     * guard — every load takes a ticket, and after each await a load that is no
+     * longer the current one stops touching the state instead of finishing.
+     */
+    let loadGeneration = 0;
     async function loadExample(id) {
         const ex = EXAMPLES.find((e) => e.id === id);
         if (!ex) throw new Error(`no example "${id}"`);
+        const mine = ++loadGeneration;
+        const superseded = () => mine !== loadGeneration;
         state.offer = null;
         state.wrappers = [];
         lastError = null;
         lastReport = null;
+        markSelected(id);
         document.getElementById('example-blurb').textContent = ex.blurb;
         try {
             const offerBytes = await fetchFixture(ex.offer);
+            if (superseded()) return lastReport;
             add(ingestBytes(offerBytes, ex.offer));
         } catch (err) {
+            if (superseded()) return lastReport;
             fail(err);
             return lastReport;
         }
         for (const name of ex.wrappers) {
             try {
-                add(ingestBytes(await fetchFixture(name), name));
+                const bytes = await fetchFixture(name);
+                if (superseded()) return lastReport;
+                add(ingestBytes(bytes, name));
             } catch (err) {
+                if (superseded()) return lastReport;
                 fail(err);
             }
         }
+        if (superseded()) return lastReport;
         return verify();
+    }
+
+    /**
+     * The last demo load started, so a caller can wait for it.
+     *
+     * Only the test hook uses this; the buttons are fire-and-forget, which is
+     * what a click is.
+     */
+    let pendingLoad = Promise.resolve();
+    function startLoad(id) {
+        pendingLoad = loadExample(id).catch(() => { /* already surfaced by fail() */ });
+        return pendingLoad;
     }
 
     function redraw() {
@@ -245,11 +360,19 @@ export function mountRead(wasm, root) {
     window.__WEBMEMO_READ__ = {
         addText: (text, label) => { try { add(ingestText(wasm, text, label || 'pasted text')); return summarise(lastReport, lastError); } catch (e) { fail(e); return summarise(lastReport, lastError); } },
         addBytes: (bytes, label) => { try { add(ingestBytes(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), label || 'bytes')); return summarise(lastReport, lastError); } catch (e) { fail(e); return summarise(lastReport, lastError); } },
-        loadExample: async (id) => { await loadExample(id); return summarise(lastReport, lastError); },
-        clear: () => { state.offer = null; state.wrappers = []; lastReport = null; lastError = null; redraw(); },
+        loadExample: async (id) => { await startLoad(id); return summarise(lastReport, lastError); },
+        // Resolves when the demo load a CLICK started has finished. The suite
+        // clicks the list the way a visitor does and then waits for this.
+        settled: () => pendingLoad,
+        clear: () => { state.offer = null; state.wrappers = []; lastReport = null; lastError = null; markSelected(null); redraw(); },
         verify: () => { verify(); return summarise(lastReport, lastError); },
         summary: () => summarise(lastReport, lastError),
         examples: EXAMPLES.map((e) => e.id),
+        // Input routing only. The suite uses these to prove both modes are
+        // reachable; nothing downstream of `add()` knows a mode exists.
+        setMode: (next) => setMode(next),
+        mode: () => mode,
+        modes: MODES,
         wasm,
     };
 }

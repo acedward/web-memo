@@ -40,11 +40,16 @@ exactly two: the proving payloads, to the proof-server URL you configure.
 
 ### Try it without having any artifacts
 
-The page ships a small corpus of real reference artifacts — including a
-deliberately hostile memo and a two-input transaction carrying the identical memo
-on both spends — behind **Try it**. They carry genuine proofs and are anchored to
-a throwaway demo state, so they are format-valid and proof-valid and could never
+The Read column opens on **Read Demo Transactions**: a list of the reference
+artifacts this page ships — including a deliberately hostile memo and a two-input
+transaction carrying the identical memo on both spends. Pick one and it is
+verified in front of you. They carry genuine proofs and are anchored to a
+throwaway demo state, so they are format-valid and proof-valid and could never
 settle anywhere. See [`fixtures/PROVENANCE.md`](fixtures/PROVENANCE.md).
+
+The other mode, **Read Custom Artifact**, is the paste box and file picker for
+your own bytes. Both modes run the identical verification: the demo list is a
+shortcut to some bytes, not a shortcut through any check.
 
 ### What Read reports
 
@@ -70,11 +75,16 @@ Create needs a **proof server**, because the spend circuit is far too large to
 prove in a browser tab. The page never talks to a proof server you did not
 configure, and the default is your own machine.
 
-1. Start the pinned proof server — one command, from this repository:
+1. Start the pinned proof server. Starting from nothing, this is the whole
+   sequence:
 
    ```sh
-   cd docker && docker compose up -d --build
+   git clone https://github.com/acedward/web-memo
+   cd web-memo/docker
+   docker compose up -d --build
    ```
+
+   (Already in a clone? Then it is just `cd docker && docker compose up -d --build`.)
 
    That is [`docker/`](docker/README.md): an image that **refuses to build**
    unless its checkout is the exact ledger commit this page's WASM bundle was

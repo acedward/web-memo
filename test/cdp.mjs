@@ -55,6 +55,12 @@ export async function launchChrome(extraArgs = []) {
             '--no-default-browser-check',
             '--disable-gpu',
             '--disable-dev-shm-usage',
+            // A desktop viewport. Headless Chrome defaults to 800x600, which is
+            // BELOW this page's two-column breakpoint — so without this every
+            // headless run would silently only ever see the stacked layout.
+            // Suites that care about a specific width override it explicitly
+            // (`Emulation.setDeviceMetricsOverride`) rather than relying on this.
+            '--window-size=1440,900',
             // Keep the throwaway profile inert: no sync, no reporting, no
             // background fetches. That matters for the airplane test — a
             // browser-initiated background request would be indistinguishable

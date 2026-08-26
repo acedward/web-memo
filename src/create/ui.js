@@ -14,7 +14,7 @@ import { byteCount, toHex } from '../lib/bytes.js';
 import { button, el, fill, row } from '../lib/dom.js';
 import { STATE_INFO } from '../read/trust.js';
 import { memoView } from '../read/memoview.js';
-import { artifactCard, demoDisclaimer } from './artifacts.js';
+import { artifactCard, copyText, demoDisclaimer } from './artifacts.js';
 import { CreateCancelled, STEPS, runCreate } from './build.js';
 import { MEMO_MAX_BYTES, measureMemo } from './memo.js';
 import {
@@ -24,6 +24,40 @@ import {
     loadProofServerUrl,
     saveProofServerUrl,
 } from './prover.js';
+
+/**
+ * The repository URL, and the complete command sequence that gets a stranger
+ * from "I have nothing" to "a pinned proof server is running".
+ *
+ * It starts at `git clone` on purpose. The v1 wording began at `cd docker`,
+ * which silently assumed the reader already had a checkout — the one assumption
+ * a visitor to the deployed page is least likely to satisfy. These three lines
+ * are the whole sequence, copy-pasteable in order, and `test/read-matrix.mjs`
+ * asserts REPO_URL against the checkout's own `git remote get-url origin`, so a
+ * renamed repository breaks the suite rather than the reader.
+ */
+export const REPO_URL = 'https://github.com/acedward/web-memo';
+export const PROOF_SERVER_COMMANDS = [
+    `git clone ${REPO_URL}`,
+    'cd web-memo/docker',
+    'docker compose up -d --build',
+].join('\n');
+
+/** The command block, with a copy button — the page already copies artifacts. */
+function commandBlock(commands, id) {
+    const status = el('span', { className: 'muted small', text: '' });
+    const copyBtn = button('Copy', async () => {
+        const ok = await copyText(commands);
+        status.textContent = ok
+            ? 'Copied.'
+            : 'The browser refused clipboard access — select the lines above and copy them manually.';
+    }, 'small-btn');
+    copyBtn.dataset.copy = id;
+    return el('div', { className: 'cmdblock' }, [
+        el('pre', { className: 'cmd', id, text: commands }),
+        el('div', { className: 'controls' }, [copyBtn, el('span', { className: 'spacer' }), status]),
+    ]);
+}
 
 export function mountCreate(wasm, root) {
     let running = false;
@@ -160,13 +194,22 @@ export function mountCreate(wasm, root) {
             el('label', { className: 'filelabel' }, [el('span', { text: 'Demo seed:' }), seedSelect]),
         ]),
         el('p', { className: 'muted small' }, [
-            el('span', { text: 'No proof server? The repository ships one, pinned to the same ledger commit as this ' +
-                'page’s WebAssembly bundle. From a clone: ' }),
-            el('span', { className: 'code', text: 'cd docker && docker compose up -d --build' }),
             el('span', {
-                text: ' — then leave the URL above as it is. See docker/README.md for the options, ' +
-                    'the provenance assertions and how to remove it again. The default above is the proof ' +
-                    'server’s own default port.',
+                text: 'No proof server? The repository ships one, pinned to the same ledger commit as this ' +
+                    'page’s WebAssembly bundle. Start from nothing — these three commands are the whole ' +
+                    'sequence, in order:',
+            }),
+        ]),
+        commandBlock(PROOF_SERVER_COMMANDS, 'proof-server-commands'),
+        el('p', { className: 'muted small' }, [
+            el('span', {
+                text: 'Then leave the URL above as it is. The first build compiles the proof server from ' +
+                    'source and takes a while; later starts are instant. See ',
+            }),
+            el('span', { className: 'code', text: 'docker/README.md' }),
+            el('span', {
+                text: ' in that clone for the options, the provenance assertions and how to remove it ' +
+                    'again. The default above is the proof server’s own default port.',
             }),
         ]),
         // Chrome's Local Network Access permission governs exactly this
@@ -358,14 +401,17 @@ export function mountCreate(wasm, root) {
             }),
 
             el('div', { className: 'card' }, [
-                el('h3', { text: 'Try it in the Read section' }),
+                el('h3', { text: 'Check it with the Read section' }),
                 el('p', {
                     className: 'muted small',
-                    text: 'Copy both strings into the Read section below — or into a fresh browser, on another machine, with the network turned off — and the memo should come back authenticated. That round trip is the whole point.',
+                    text: 'Copy both strings into the Read section (choose "Read Custom Artifact") — or into a fresh browser, on another machine, with the network turned off — and the memo should come back authenticated. That round trip is the whole point.',
                 }),
                 button('Load this pair into Read', () => {
                     const api = window.__WEBMEMO_READ__;
                     if (!api) return;
+                    // These bytes are a custom artifact, not a bundled demo, so
+                    // put the Read column in the mode that says so.
+                    if (api.setMode && api.modes) api.setMode(api.modes.CUSTOM);
                     api.clear();
                     api.addBytes(r.artifacts.offer.bytes, 'created here: offer file');
                     api.addBytes(r.artifacts.wrapper.bytes, 'created here: memo wrapper');
