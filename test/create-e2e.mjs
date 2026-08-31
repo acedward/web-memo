@@ -104,6 +104,10 @@ async function main() {
         check('S0', 'the page loads and mounts BOTH sections in a real browser', up);
         if (!up) throw new Error('the page never mounted');
 
+        // The landing view is the walkthrough; everything this suite drives
+        // lives in the examples panel, so open it the way a reader would.
+        await evaluate(cdp, sessionId, `document.getElementById('toggle-examples').click()`);
+
         const selftest = JSON.parse(await evaluate(cdp, sessionId, 'JSON.stringify(window.__WEBMEMO_SELFTEST__)'));
         check('S1', 'all 14 memo bindings are present, including memoSpendStatementTail',
             selftest.memoPresent === 14 && selftest.memoExpected === 14, `${selftest.memoPresent}/${selftest.memoExpected}`);
@@ -247,6 +251,31 @@ async function main() {
         `);
         check('P2', 'with nothing stored the default is localhost and the documented port',
             defaulted === 'http://localhost:6300', defaulted);
+
+        // ================================================================ SB
+        // The walkthrough's own "prove both — for real" path, against a dead
+        // server: the same typed error the Create section gives, and nothing
+        // half-shown.
+        at = marker();
+        const storyDead = JSON.parse(await evaluate(cdp, sessionId, `
+            (async () => {
+                const api = window.__WEBMEMO_STORY__;
+                api.setMessage('hello world');
+                api.next();
+                const s = await api.prove('http://127.0.0.1:${dead}');
+                const cards = document.querySelectorAll('#story .card[data-artifact]').length;
+                const state = api.state();
+                api.reset();
+                return JSON.stringify({ s, cards, runAfter: state.run.status });
+            })()
+        `, 120000));
+        check('SB1', 'the walkthrough surfaces the typed unreachable error',
+            storyDead.s.status === 'error' && storyDead.s.error.code === 'PROOF_SERVER_UNREACHABLE',
+            JSON.stringify(storyDead.s));
+        check('SB2', 'a failed walkthrough run shows NO artifact', storyDead.cards === 0, String(storyDead.cards));
+        check('SB3', 'the only requests went to the configured (dead) URL',
+            events.requests.slice(at).every((r) => r.url.startsWith(`http://127.0.0.1:${dead}`)),
+            events.requests.slice(at).map((r) => r.url).join(' | ') || 'zero requests');
 
         if (!PROOF_SERVER) {
             check('SKIP', 'phases C, D and F need PROOF_SERVER — not run', true, 'set PROOF_SERVER=http://127.0.0.1:PORT');
@@ -456,6 +485,35 @@ async function main() {
                 tampered.renderedMemoCount === 0, JSON.stringify(tampered.renderedMemoText));
 
             await cdp.send('Target.closeTarget', { targetId: fresh.targetId });
+
+            // ============================================================ G
+            // The walkthrough's REAL run: the same pipeline, driven from the
+            // story's own button path, ending in the measured verdict and the
+            // two artifacts inside the story itself.
+            const storyReal = JSON.parse(await evaluate(cdp, sessionId, `
+                (async () => {
+                    const api = window.__WEBMEMO_STORY__;
+                    api.setMessage('hello world');
+                    api.next();
+                    const s = await api.prove(${JSON.stringify(PROOF_SERVER)});
+                    api.next();
+                    const text = document.getElementById('story').textContent;
+                    return JSON.stringify({
+                        s,
+                        cards: document.querySelectorAll('#story .card[data-artifact]').length,
+                        realChips: document.querySelectorAll('#story .chip.c-real').length,
+                        verdictShown: text.includes('Authenticated with a matching anchor'),
+                        offerShown: text.includes('offer file'),
+                    });
+                })()
+            `, 600000));
+            check('G1', 'the walkthrough proves both proofs for real and self-verifies',
+                storyReal.s.status === 'done' && storyReal.s.state === 'AuthenticatedWithMatchingAnchorUnconfirmed',
+                JSON.stringify(storyReal.s));
+            check('G2', 'the final step shows the two real artifacts', storyReal.cards === 2, String(storyReal.cards));
+            check('G3', 'the proof chips are marked real and the measured verdict is on the page',
+                storyReal.realChips >= 1 && storyReal.verdictShown && storyReal.offerShown,
+                JSON.stringify({ realChips: storyReal.realChips, verdictShown: storyReal.verdictShown }));
         }
 
         check('Z1', 'no uncaught page errors across the whole run', events.errors.length === 0, events.errors.join(' | '));

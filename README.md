@@ -6,6 +6,13 @@ A single static web page that **creates and verifies Zswap offers carrying an
 authenticated memo** — a short message cryptographically bound to a specific
 spend, provable by anyone, without leaking any key.
 
+The page lands on a **four-step walkthrough**: type a message, watch it become
+a hash bound to a spend, see the two proofs, and see what actually travels to
+the network. The hash in the walkthrough is the real `MemoHashV1` of what you
+type; the proofs in it are illustrative. The full **Create** and **Read**
+sections — which make and verify real proofs — are behind the **See examples**
+button in the top right.
+
 Read works on the deployed page with nothing installed and no network — paste a
 pair, get a verdict. Create additionally needs a proof server on your own
 machine, which [`docker/`](docker/README.md) starts in one command.

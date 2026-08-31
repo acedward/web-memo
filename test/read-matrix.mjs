@@ -115,6 +115,57 @@ async function main() {
             st.memoPresent === 14 && st.memoExpected === 14, `${st.memoPresent}/${st.memoExpected}`);
         check('S3', 'no uncaught page errors while loading', events.errors.length === 0, events.errors.join(' | '));
 
+        // ---------------------------------------------------------- phase 1b
+        // The landing walkthrough. The story is the default view, the examples
+        // start hidden behind the masthead button, and the hash the story shows
+        // is the REAL MemoHashV1 — asserted against the same frozen vector S1
+        // just reproduced.
+        const landing = JSON.parse(await evaluate(cdp, sessionId, `
+            (() => {
+                const story = document.getElementById('story');
+                const examples = document.getElementById('examples');
+                return JSON.stringify({
+                    storyMounted: Boolean(story && story.textContent.includes('[transaction]')),
+                    examplesHidden: Boolean(examples && examples.hidden),
+                    api: Boolean(window.__WEBMEMO_STORY__),
+                });
+            })()
+        `));
+        check('ST0', 'the walkthrough is the landing view, and the examples start hidden',
+            landing.storyMounted && landing.examplesHidden && landing.api, JSON.stringify(landing));
+
+        const storyRun = JSON.parse(await evaluate(cdp, sessionId, `
+            (() => {
+                const api = window.__WEBMEMO_STORY__;
+                const set = api.setMessage('hello world');
+                const hashHex = api.state().hashHex;
+                api.next();
+                api.next();
+                const endStage = api.state().stage;
+                const endText = document.getElementById('story').textContent;
+                api.reset();
+                return JSON.stringify({
+                    setOk: set.ok === true,
+                    hashHex,
+                    endStage,
+                    endShowsAll: endText.includes('Proof-1') && endText.includes('Proof-2')
+                        && endText.includes('memo wrapper') && endText.includes('verified'),
+                    resetStage: api.state().stage,
+                });
+            })()
+        `));
+        check('ST1', "the story hashes 'hello world' to the frozen MemoHashV1 vector, byte-exactly",
+            storyRun.setOk && storyRun.hashHex === '65d3c33a0fb14d48a042620c375bb19fba0f9d8fbfc6bbe3f21959f73c2a5455',
+            String(storyRun.hashHex));
+        check('ST2', 'stepping to the end shows both proofs, the memo wrapper and the verified verdict — and reset returns to the start',
+            storyRun.endStage === 3 && storyRun.endShowsAll && storyRun.resetStage === 0, JSON.stringify(storyRun));
+
+        // Every phase below exercises the full Create/Read sections, exactly as
+        // a reader who pressed "See examples" sees them.
+        await evaluate(cdp, sessionId, `document.getElementById('toggle-examples').click()`);
+        check('ST3', 'the See-examples button reveals the examples',
+            await evaluate(cdp, sessionId, `document.getElementById('examples').hidden === false`));
+
         // ---------------------------------------------------------- phase 2
         const matrixSource = fs.readFileSync(path.join(HERE, 'inpage-matrix.js'), 'utf8');
         const matrix = await evaluate(cdp, sessionId, matrixSource, 600000);

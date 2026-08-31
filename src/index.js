@@ -20,6 +20,28 @@ import { toHex, fromHex } from './lib/bytes.js';
 import { MEMO_EXPORTS, initMs, loadLedgerWasm } from './wasm.js';
 import { mountRead } from './read/ui.js';
 import { mountCreate } from './create/ui.js';
+import { mountStory } from './story/ui.js';
+
+/**
+ * The landing view is the walkthrough; the full Create/Read sections live in
+ * `#examples`, hidden until the masthead button reveals them. Both sections
+ * are mounted either way — hiding is presentation, not state.
+ */
+function wireExamplesToggle() {
+    const examples = document.getElementById('examples');
+    const toggle = document.getElementById('toggle-examples');
+    const setOpen = (open) => {
+        examples.hidden = !open;
+        toggle.textContent = open ? 'Hide examples' : 'See examples';
+        toggle.classList.toggle('on', open);
+        toggle.classList.toggle('toggle', true);
+    };
+    toggle.addEventListener('click', () => setOpen(examples.hidden));
+    return (open) => {
+        setOpen(open);
+        if (open) examples.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+}
 
 // ---------------------------------------------------------------------------
 // Known answers, copied from the 00003 frozen conformance vectors
@@ -68,6 +90,8 @@ function renderSelfTest(report) {
 }
 
 async function main() {
+    const openExamples = wireExamplesToggle();
+
     const report = {
         ok: false,
         initMs: null,
@@ -102,8 +126,15 @@ async function main() {
             // "load this pair into Read" button needs that section to exist.
             mountRead(wasm, document.getElementById('read'));
             mountCreate(wasm, document.getElementById('create'));
+            mountStory(wasm, document.getElementById('story'), {
+                onSeeExamples: () => openExamples(true),
+            });
         } else {
             const unavailable = 'the WebAssembly module did not reproduce the frozen conformance vectors, so it is not the build this page was specified against.';
+            fill(
+                document.getElementById('story'),
+                el('p', { className: 'fail', text: `The walkthrough is not available: ${unavailable}` }),
+            );
             fill(
                 document.getElementById('read'),
                 el('p', { className: 'fail', text: `The Read section is not available: ${unavailable}` }),
@@ -116,6 +147,10 @@ async function main() {
     } catch (err) {
         report.error = String(err && err.message ? err.message : err);
         renderSelfTest(report);
+        fill(
+            document.getElementById('story'),
+            el('p', { className: 'fail', text: `The cryptographic engine could not be loaded: ${report.error}` }),
+        );
         fill(
             document.getElementById('read'),
             el('p', { className: 'fail', text: `The cryptographic engine could not be loaded: ${report.error}` }),

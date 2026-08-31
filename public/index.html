@@ -200,12 +200,121 @@
   }
   .memo p { padding: 0 10px; }
   .memo p:last-child { padding-bottom: 8px; }
+
+  /* ------------------------------------------------------------------
+     The landing walkthrough (src/story/ui.js), and the masthead toggle
+     that reveals the full Create/Read examples underneath it.
+     ------------------------------------------------------------------ */
+  .masthead { display: flex; align-items: flex-start; gap: 16px; }
+  .masthead > div { flex: 1; min-width: 0; }
+  #toggle-examples { white-space: nowrap; margin-top: 6px; }
+
+  #story { margin: 30px 0 8px; }
+  .story-step { font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: #8b949e; }
+  h2.story-title { margin: 2px 0 8px; font-size: 18px; }
+  .story-sub { max-width: 780px; }
+
+  .txrow {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    border: 1px solid #30363d; background: #161b22; border-radius: 8px;
+    padding: 14px 16px; margin: 14px 0 4px;
+  }
+  .tx-note { margin: 2px 0 10px 4px; }
+  .tx-name {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; color: #e6edf3; font-weight: 600; white-space: nowrap;
+  }
+  .tx-arrow { color: #8b949e; font-size: 15px; }
+  .tx-arrow.strong { color: #c9d1d9; }
+  .tx-plus { color: #8b949e; font-size: 14px; }
+  .chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; border: 1px solid #30363d; border-radius: 6px;
+    padding: 4px 9px; background: #0d1117; color: #c9d1d9;
+  }
+  .chip.c-input   { border-color: #388bfd66; color: #79c0ff; }
+  .chip.c-output  { border-color: #2ea04366; color: #7ee787; }
+  .chip.c-memo    { border-color: #d2a8ff66; color: #d2a8ff; }
+  .chip.c-binding { border-color: #9e6a03;   color: #e3b341; }
+  .chip.c-proof1  { border-color: #2ea043;   color: #3fb950; font-weight: 600; }
+  .chip.c-proof2  { border-color: #8957e5;   color: #d2a8ff; font-weight: 600; }
+  .chip.c-real    { background: #0f2d16; }
+  .chip.c-message { border-color: #f0f6fc33; color: #e6edf3; }
+  .wrap-group {
+    display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    min-width: 0; max-width: 100%;
+    border: 1px dashed #8957e5; border-radius: 8px; padding: 6px 10px;
+  }
+  .chip { max-width: 100%; overflow-wrap: anywhere; }
+
+  /* Two transactions in ONE grid so equal parts share a column and align.
+     The wrap scrolls sideways on its own if a phone is too narrow for the
+     columns — the page never does. */
+  .txgrid-wrap { overflow-x: auto; margin: 14px 0 4px; }
+  .txgrid {
+    display: grid; gap: 12px 10px; align-items: center;
+    width: max-content; min-width: 100%;
+    border: 1px solid #30363d; background: #161b22; border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .txgrid.cols-4 { grid-template-columns: repeat(4, max-content); }
+  .txgrid.cols-7 { grid-template-columns: repeat(7, max-content); }
+
+  /* transaction′'s input, with the binding carried INSIDE it. */
+  .input-group {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid #388bfd66; border-radius: 8px; padding: 5px 9px;
+    background: #0d1117;
+  }
+  .input-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; color: #79c0ff;
+  }
+  .txgrid .tx-note { grid-column: 1 / -1; margin: -8px 0 2px; }
+  .txgrid .chip { overflow-wrap: normal; }
+
+  /* The typed message, kept in view on the later steps. */
+  .msg-strip { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 0; }
+  .story-msgline { font-size: 14px; color: #e6edf3; margin: 0 0 6px; overflow-wrap: anywhere; }
+  .wrap-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: #d2a8ff; }
+
+  .story-form { display: flex; gap: 10px; margin: 16px 0 6px; max-width: 640px; }
+  input.story-msg {
+    flex: 1; min-width: 0; background: #0d1117; color: #c9d1d9;
+    border: 1px solid #30363d; border-radius: 6px; padding: 8px 12px; font-size: 14px;
+  }
+  input.story-msg:focus { outline: none; border-color: #58a6ff; }
+  .story-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 16px 0; }
+  .hash-card { margin-top: 16px; }
+  .hash-hex { font-size: 12px; color: #d2a8ff; margin: 4px 0 8px; }
+
+  .footnote { margin: 26px 0 8px; }
+  #examples { border-top: 1px solid #30363d; margin-top: 28px; padding-top: 22px; }
 </style>
 </head>
 <body>
 
-<h1>web-memo</h1>
-<p class="muted">Authenticated memos on Zswap offers — an experimental demo of <em>memo-v3</em>.</p>
+<header class="masthead">
+  <div>
+    <h1>web-memo</h1>
+    <p class="muted">Authenticated memos on Zswap offers — an experimental demo of <em>memo-v3</em>.</p>
+  </div>
+  <button id="toggle-examples" type="button">See examples</button>
+</header>
+
+<section id="story" aria-label="How a memo is bound to a transaction">
+  <p class="muted">Loading the walkthrough…</p>
+</section>
+
+<p class="muted small footnote">
+  Experimental demo — not an official Midnight product. The hash the walkthrough
+  shows is the real <code>MemoHashV1</code> of what you type, computed in your
+  browser. The only network request it can ever make is the proving payload, to
+  a proof server you configure, behind the one button that says so. Source:
+  <a href="https://github.com/acedward/web-memo">github.com/acedward/web-memo</a>.
+</p>
+
+<div id="examples" hidden>
 
 <div class="banner">
   <strong>Experimental demo. Not an official Midnight product.</strong><br>
@@ -263,6 +372,8 @@
   memos hash identically, and a short memo can be guessed offline. Treat this as
   a technology demonstration, not a private messaging channel.
 </p>
+
+</div><!-- /#examples -->
 
 </body>
 </html>
